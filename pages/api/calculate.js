@@ -121,12 +121,12 @@ export default function handler(req, res) {
         U_s_pred
       });
 
-      # Update for next iteration
+      // Update for next iteration
       M_prev = M_s;
       U_prev = U_s_pred;
     }
 
-    # Compute CR_total
+    // Compute CR_total
     const CR_total = results.reduce((acc, r) => acc * r.CR_s, 1);
 
     res.status(200).json({ results, CR_total });
