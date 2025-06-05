@@ -32,20 +32,53 @@ export default function Home() {
   const [simulationResult, setSimulationResult] = useState(null);
   const [backsolveResult, setBacksolveResult] = useState(null);
 
-  // ─── 4. Helper: Input-type options ─────────────────────────────────────
+  // ─── 4. Lookup tables for “1–5” descriptive labels ────────────────────
+  const emotionOptions = [
+    { value: 1, label: "1 — Barely any pull" },
+    { value: 2, label: "2 — Mild interest" },
+    { value: 3, label: "3 — Moderate pull" },
+    { value: 4, label: "4 — Strong pull" },
+    { value: 5, label: "5 — Critical pull" },
+  ];
+
+  const necessityOptions = [
+    { value: 1, label: "1 — Optional (no real consequence)" },
+    { value: 2, label: "2 — Low urgency" },
+    { value: 3, label: "3 — Moderate necessity" },
+    { value: 4, label: "4 — High necessity" },
+    { value: 5, label: "5 — Mandatory & urgent" },
+  ];
+
+  const invasivenessOptions = [
+    { value: 1, label: "1 — Low invasiveness (general, non-personal)" },
+    { value: 2, label: "2 — Mildly personal, non-risky" },
+    { value: 3, label: "3 — Personally revealing, but common" },
+    { value: 4, label: "4 — Sensitive & contextually risky" },
+    { value: 5, label: "5 — Highly invasive, socially or legally risky" },
+  ];
+
+  const difficultyOptions = [
+    { value: 1, label: "1 — Immediate answer (no lookup)" },
+    { value: 2, label: "2 — Minimal thought (common recall)" },
+    { value: 3, label: "3 — Recall uncommon fact" },
+    { value: 4, label: "4 — Calculation / estimation" },
+    { value: 5, label: "5 — Judgment or fuzzy boundary" },
+  ];
+
+  // ─── 5. Input-type options (unchanged) ────────────────────────────────
   const inputTypeOptions = [
-    { value: "check_box", label: "Check‐box" },
-    { value: "radio_button", label: "Radio‐button" },
+    { value: "check_box", label: "Check-box" },
+    { value: "radio_button", label: "Radio-button" },
     { value: "dropdown", label: "Dropdown (select)" },
     { value: "media_selector", label: "Media Selector (card)" },
     { value: "slider", label: "Slider" },
-    { value: "date_picker", label: "Date‐picker" },
+    { value: "date_picker", label: "Date-picker" },
     { value: "text_input_short", label: "Short Text (e.g. Zipcode)" },
     { value: "search_input", label: "Search Input" },
     { value: "text_input_long", label: "Long Text (e.g. Email)" },
   ];
 
-  // ─── 5. Handle adding/removing steps/questions ─────────────────────────
+  // ─── 6. Handle adding/removing steps/questions ─────────────────────────
   const addStep = () => {
     setSteps([
       ...steps,
@@ -85,7 +118,7 @@ export default function Home() {
     setSteps(updated);
   };
 
-  // ─── 6. Build payload for simulation/backsolve ─────────────────────────
+  // ─── 7. Build payload for simulation/backsolve ─────────────────────────
   const buildPayload = () => ({
     steps,
     E,
@@ -101,7 +134,7 @@ export default function Home() {
     U0,
   });
 
-  // ─── 7. Run Forward Simulation ────────────────────────────────────────
+  // ─── 8. Run Forward Simulation ────────────────────────────────────────
   const runSimulation = async () => {
     try {
       setSimulationResult(null);
@@ -120,7 +153,7 @@ export default function Home() {
     }
   };
 
-  // ─── 8. Run Back-Solve ─────────────────────────────────────────────────
+  // ─── 9. Run Back-Solve ─────────────────────────────────────────────────
   const runBacksolve = async () => {
     try {
       setBacksolveResult(null);
@@ -145,28 +178,47 @@ export default function Home() {
     }
   };
 
-  // ─── 9. JSX: Render the form ───────────────────────────────────────────
+  // ─── 10. JSX: Render the form ───────────────────────────────────────────
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
       <h1>Journey Calculator</h1>
 
-      {/* ─── Funnel-level Settings ──────────────────────────── */}
-      <section style={{ border: "1px solid #ddd", padding: "1rem", marginBottom: "2rem" }}>
+      {/* ─── Funnel-Level Settings ──────────────────────────── */}
+      <section
+        style={{
+          border: "1px solid #ddd",
+          padding: "1rem",
+          marginBottom: "2rem",
+        }}
+      >
         <h2>Funnel-Level Settings</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "1rem",
+          }}
+        >
           <div>
             <label>Emotion (E): </label>
             <select value={E} onChange={(e) => setE(+e.target.value)}>
-              {[1, 2, 3, 4, 5].map((v) => (
-                <option key={v} value={v}>{v}</option>
+              {emotionOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </div>
           <div>
             <label>Necessity (N): </label>
-            <select value={N_importance} onChange={(e) => setNImportance(+e.target.value)}>
-              {[1, 2, 3, 4, 5].map((v) => (
-                <option key={v} value={v}>{v}</option>
+            <select
+              value={N_importance}
+              onChange={(e) => setNImportance(+e.target.value)}
+            >
+              {necessityOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </div>
@@ -182,48 +234,109 @@ export default function Home() {
             </select>
           </div>
           <div>
-            <label>c₁ (weight·interaction): </label>
-            <input type="number" step="0.1" value={c1} onChange={(e) => setC1(+e.target.value)} />
+            <label>c₁ (interaction weight): </label>
+            <input
+              type="number"
+              step="0.1"
+              value={c1}
+              onChange={(e) => setC1(+e.target.value)}
+            />
           </div>
           <div>
-            <label>c₂ (weight·privacy): </label>
-            <input type="number" step="0.1" value={c2} onChange={(e) => setC2(+e.target.value)} />
+            <label>c₂ (privacy weight): </label>
+            <input
+              type="number"
+              step="0.1"
+              value={c2}
+              onChange={(e) => setC2(+e.target.value)}
+            />
           </div>
           <div>
-            <label>c₃ (weight·difficulty): </label>
-            <input type="number" step="0.1" value={c3} onChange={(e) => setC3(+e.target.value)} />
+            <label>c₃ (difficulty weight): </label>
+            <input
+              type="number"
+              step="0.1"
+              value={c3}
+              onChange={(e) => setC3(+e.target.value)}
+            />
           </div>
           <div>
-            <label>w_c (weight·complexity): </label>
-            <input type="number" step="0.1" value={w_c} onChange={(e) => setWc(+e.target.value)} />
+            <label>w_c (complexity weight): </label>
+            <input
+              type="number"
+              step="0.1"
+              value={w_c}
+              onChange={(e) => setWc(+e.target.value)}
+            />
           </div>
           <div>
-            <label>w_f (weight·fatigue): </label>
-            <input type="number" step="0.1" value={w_f} onChange={(e) => setWf(+e.target.value)} />
+            <label>w_f (fatigue weight): </label>
+            <input
+              type="number"
+              step="0.1"
+              value={w_f}
+              onChange={(e) => setWf(+e.target.value)}
+            />
           </div>
           <div>
-            <label>w_E (weight·emotion): </label>
-            <input type="number" step="0.01" value={w_E} onChange={(e) => setWE(+e.target.value)} />
+            <label>w_E (emotion weight): </label>
+            <input
+              type="number"
+              step="0.01"
+              value={w_E}
+              onChange={(e) => setWE(+e.target.value)}
+            />
           </div>
           <div>
-            <label>w_N (weight·necessity): </label>
-            <input type="number" step="0.01" value={w_N} onChange={(e) => setWN(+e.target.value)} />
+            <label>w_N (necessity weight): </label>
+            <input
+              type="number"
+              step="0.01"
+              value={w_N}
+              onChange={(e) => setWN(+e.target.value)}
+            />
           </div>
           <div>
             <label>U₀ (initial cohort): </label>
-            <input type="number" value={U0} onChange={(e) => setU0(+e.target.value)} />
+            <input
+              type="number"
+              value={U0}
+              onChange={(e) => setU0(+e.target.value)}
+            />
           </div>
         </div>
       </section>
 
       {/* ─── Steps & Questions ─────────────────────────────────────────── */}
-      <section style={{ border: "1px solid #ddd", padding: "1rem", marginBottom: "2rem" }}>
+      <section
+        style={{
+          border: "1px solid #ddd",
+          padding: "1rem",
+          marginBottom: "2rem",
+        }}
+      >
         <h2>Steps &amp; Questions</h2>
         {steps.map((step, stepIndex) => (
-          <div key={stepIndex} style={{ border: "1px solid #ccc", padding: "1rem", marginBottom: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            key={stepIndex}
+            style={{
+              border: "1px solid #ccc",
+              padding: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <strong>Step {stepIndex + 1}</strong>
-              <button onClick={() => removeStep(stepIndex)} style={{ color: "red" }}>
+              <button
+                onClick={() => removeStep(stepIndex)}
+                style={{ color: "red" }}
+              >
                 Remove Step
               </button>
             </div>
@@ -255,6 +368,7 @@ export default function Home() {
                     alignItems: "center",
                   }}
                 >
+                  {/* 1) Input Type selector */}
                   <select
                     value={q.input_type}
                     onChange={(e) => {
@@ -269,6 +383,7 @@ export default function Home() {
                     ))}
                   </select>
 
+                  {/* 2) Invasiveness selector (mapped to descriptive) */}
                   <select
                     value={q.invasiveness}
                     onChange={(e) => {
@@ -276,11 +391,14 @@ export default function Home() {
                       updateQuestion(stepIndex, qIndex, newQ);
                     }}
                   >
-                    {[1, 2, 3, 4, 5].map((v) => (
-                      <option key={v} value={v}>{v}</option>
+                    {invasivenessOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
                     ))}
                   </select>
 
+                  {/* 3) Difficulty selector (mapped to descriptive) */}
                   <select
                     value={q.difficulty}
                     onChange={(e) => {
@@ -288,11 +406,14 @@ export default function Home() {
                       updateQuestion(stepIndex, qIndex, newQ);
                     }}
                   >
-                    {[1, 2, 3, 4, 5].map((v) => (
-                      <option key={v} value={v}>{v}</option>
+                    {difficultyOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
                     ))}
                   </select>
 
+                  {/* 4) Remove question button */}
                   <button
                     onClick={() => removeQuestion(stepIndex, qIndex)}
                     style={{ color: "red" }}
@@ -313,23 +434,47 @@ export default function Home() {
       </section>
 
       {/* ─── Preview JSON Payload ────────────────────────────────────────── */}
-      <section style={{ border: "1px solid #ddd", padding: "1rem", marginBottom: "2rem" }}>
+      <section
+        style={{
+          border: "1px solid #ddd",
+          padding: "1rem",
+          marginBottom: "2rem",
+        }}
+      >
         <h2>Preview Payload</h2>
-        <pre style={{ whiteSpace: "pre-wrap", background: "#f9f9f9", padding: "1rem", maxHeight: "300px", overflowY: "auto" }}>
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            background: "#f9f9f9",
+            padding: "1rem",
+            maxHeight: "300px",
+            overflowY: "auto",
+          }}
+        >
           {JSON.stringify(buildPayload(), null, 2)}
         </pre>
       </section>
 
       {/* ─── Forward Simulation Button & Result ──────────────────────────── */}
       <section style={{ marginBottom: "2rem" }}>
-        <button onClick={runSimulation} style={{ padding: "0.5rem 1rem", fontSize: "1rem" }}>
+        <button
+          onClick={runSimulation}
+          style={{ padding: "0.5rem 1rem", fontSize: "1rem" }}
+        >
           Run Simulation
         </button>
 
         {simulationResult && (
           <div style={{ marginTop: "1rem" }}>
             <h3>Simulation Results</h3>
-            <pre style={{ background: "#f0f0f0", padding: "1rem", maxHeight: "400px", overflowY: "auto" }}>
+            <pre
+              style={{
+                background: "#f0f0f0",
+                padding: "1rem",
+                maxHeight: "400px",
+                overflowY: "auto",
+              }}
+            >
               {JSON.stringify(simulationResult, null, 2)}
             </pre>
           </div>
@@ -339,7 +484,13 @@ export default function Home() {
       <hr style={{ margin: "2rem 0" }} />
 
       {/* ─── Back-Solve Section ───────────────────────────────────────────── */}
-      <section style={{ border: "1px solid #ddd", padding: "1rem", marginBottom: "2rem" }}>
+      <section
+        style={{
+          border: "1px solid #ddd",
+          padding: "1rem",
+          marginBottom: "2rem",
+        }}
+      >
         <h2>Run Back-Solve (Fit k, γ_exit, ε)</h2>
         <p>
           1. Ensure the journey JSON above is correct.<br />
@@ -353,14 +504,24 @@ export default function Home() {
           onChange={(e) => setObservedCRInput(e.target.value)}
           style={{ display: "block", marginBottom: "0.5rem" }}
         />
-        <button onClick={runBacksolve} style={{ padding: "0.5rem 1rem", fontSize: "1rem" }}>
+        <button
+          onClick={runBacksolve}
+          style={{ padding: "0.5rem 1rem", fontSize: "1rem" }}
+        >
           Run Back-Solve
         </button>
 
         {backsolveResult && (
           <div style={{ marginTop: "1rem" }}>
             <h3>Best-Fit Parameters</h3>
-            <pre style={{ background: "#f0f0f0", padding: "1rem", maxHeight: "200px", overflowY: "auto" }}>
+            <pre
+              style={{
+                background: "#f0f0f0",
+                padding: "1rem",
+                maxHeight: "200px",
+                overflowY: "auto",
+              }}
+            >
               {JSON.stringify(backsolveResult, null, 2)}
             </pre>
           </div>
@@ -368,7 +529,8 @@ export default function Home() {
       </section>
 
       <p style={{ fontSize: "0.9rem", color: "#666" }}>
-        * After computing best-fit k, γ_exit, ε, update your YAML or constants for future simulations. *
+        * After computing best-fit k, γ_exit, ε, update your YAML or constants for
+        future simulations. *
       </p>
     </div>
   );
