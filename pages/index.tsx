@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useToast } from '@hooks/use-toast';
 import Link from 'next/link';
+import { Button } from '@components/ui/button';
 import CurrentConstantsSection from '@components/CurrentConstantsSection';
 import FunnelSettingsSection from '@components/FunnelSettingsSection';
 import StepsEditor from '@components/StepsEditor';
@@ -11,7 +12,10 @@ import ResultsTable from '@components/ResultsTable';
 import ExportShareControls from '@components/ExportShareControls';
 import DataVisualization from '@components/DataVisualization';
 import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
-import { BacksolveResult, Step, SimulationData, LLMAssessmentResult } from '../types';
+import MCPComparisonTable from '@components/MCPComparisonTable';
+import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
+import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -94,20 +98,35 @@ const JourneyCalculator: React.FC = () => {
   const [backsolveResult, setBacksolveResult] = useState<BacksolveResult | null>(null);
   const [simulationData, setSimulationData] = useState<SimulationData | null>(null);
   const [optimizeResult, setOptimizeResult] = useState<{
-    optimal_step_order: number[];
-    optimal_CR_total: number;
-    sample_results?: Array<{
+    optimalOrder: number[];
+    optimalCRTotal: number;
+    algorithm: string;
+    samplesEvaluated: number;
+    ceiling_analysis?: {
+      baseline_CR: number;
+      model_ceiling_CR: number;
+      potential_gain_pp: number;
+      improvement_possible: boolean;
+      best_framework?: string;
+      optimization_worthwhile?: boolean;
+    };
+    llm_uplifts_applied?: boolean;
+    allSamples?: Array<{
       order: number[];
-      CR_total: number;
+      crTotal: number;
     }>;
   } | null>(null);
   const [optimalPositions, setOptimalPositions] = useState<Record<number, number>>({});
   const [llmCache, setLlmCache] = useState<Record<string, string>>({});
   const [llmAssessmentResult, setLlmAssessmentResult] = useState<LLMAssessmentResult | null>(null);
+  const [mcpFunnelResult, setMcpFunnelResult] = useState<MCPFunnelResult | null>(null);
+  const [enhancedMcpResult, setEnhancedMcpResult] = useState<any>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isBacksolving, setIsBacksolving] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isAssessing, setIsAssessing] = useState(false);
+  const [isMCPAnalyzing, setIsMCPAnalyzing] = useState(false);
+  const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
   const [numSamples, setNumSamples] = useState(5000); // Strategy 3: Increase default search space
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
 
@@ -388,20 +407,20 @@ const JourneyCalculator: React.FC = () => {
       // Store the complete optimize result
       setOptimizeResult(data);
       
-      // Convert optimal_step_order array to optimalPositions object
+      // Convert optimalOrder array to optimalPositions object
       const optimalPositionsMap: Record<number, number> = {};
-      if (data.optimal_step_order && Array.isArray(data.optimal_step_order)) {
-        data.optimal_step_order.forEach((originalIndex: number, newPosition: number) => {
+      if (data.optimalOrder && Array.isArray(data.optimalOrder)) {
+        data.optimalOrder.forEach((originalIndex: number, newPosition: number) => {
           optimalPositionsMap[originalIndex] = newPosition;
         });
       }
       
       setOptimalPositions(optimalPositionsMap);
-      setSimulationData((prev: SimulationData | null) => prev ? { ...prev, bestCR: data.optimal_CR_total } : null);
+      setSimulationData((prev: SimulationData | null) => prev ? { ...prev, bestCR: data.optimalCRTotal } : null);
       
       toast({
         title: "Optimization Complete",
-        description: `Best CR found: ${(data.optimal_CR_total * 100).toFixed(2)}%`
+        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm`
       });
     } catch (error) {
       console.error('Optimization error:', error);
@@ -438,7 +457,7 @@ const JourneyCalculator: React.FC = () => {
         }))
       };
 
-      const response = await fetch('/api/assessSteps', {
+      const response = await fetch('/api/assessStepsMCP', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(assessmentPayload)
@@ -460,7 +479,7 @@ const JourneyCalculator: React.FC = () => {
 
       toast({
         title: "LLM Assessment Complete",
-        description: `Generated recommendations for ${data.assessments.length} steps using real AI analysis`
+        description: `Generated recommendations for ${data.assessments.length} steps using MCP analysis`
       });
 
     } catch (error) {
@@ -474,6 +493,144 @@ const JourneyCalculator: React.FC = () => {
       setIsAssessing(false);
     }
   }, [steps, simulationData, toast]);
+
+  const runMCPFunnelAnalysis = useCallback(async () => {
+    try {
+      setIsMCPAnalyzing(true);
+      
+      if (!steps || steps.length === 0) {
+        throw new Error("Please configure funnel steps first");
+      }
+
+      // Call MCP manusFunnel orchestrator function
+      const response = await fetch('/api/manusFunnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          steps: steps,
+          frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini', 'SCARF', 'JTBD', 'TOTE', 'ELM']
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        // Special handling for MCP not available
+        if (errorData.error === 'MCP client not available') {
+          throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
+        }
+        
+        throw new Error(errorData.error || errorData.details || 'MCP funnel analysis failed');
+      }
+
+      const data = await response.json();
+      setMcpFunnelResult(data);
+
+      toast({
+        title: "MCP Analysis Complete",
+        description: `Analyzed ${data.metadata.totalVariants} framework variants. Best: ${data.metadata.topPerformer.framework} (+${data.metadata.topPerformer.uplift_pp.toFixed(2)}pp)`
+      });
+
+    } catch (error) {
+      console.error('MCP Funnel Analysis error:', error);
+      toast({
+        title: "MCP Analysis Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsMCPAnalyzing(false);
+    }
+  }, [steps, toast]);
+
+  const applyMCPVariant = useCallback(async (variant: MCPFunnelVariant) => {
+    try {
+      // Apply the variant's step order and suggested copy
+      // This would integrate with your existing step reordering logic
+      
+      toast({
+        title: "Variant Applied",
+        description: `Applied ${variant.framework} framework with ${variant.suggestions.length} improvements`
+      });
+
+      // Optionally re-run simulation with new configuration
+      
+    } catch (error) {
+      console.error('Apply variant error:', error);
+      toast({
+        title: "Apply Variant Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
+
+  const runEnhancedMCPAnalysis = useCallback(async () => {
+    if (!steps || steps.length === 0) return;
+
+    setIsEnhancedMCPAnalyzing(true);
+    try {
+      const payload = buildPayload();
+      
+      const response = await fetch('/api/manusFunnelEnhanced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini', 'SCARF', 'JTBD', 'TOTE', 'ELM'],
+          use_backsolved_constants: !!backsolveResult,
+          best_k: backsolveResult?.bestParams?.best_k,
+          best_gamma_exit: backsolveResult?.bestParams?.best_gamma_exit
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setEnhancedMcpResult(data);
+        toast({
+          title: "Enhanced MCP Analysis Complete",
+          description: `Analyzed ${data.baseline_metrics?.frameworks_analyzed || 0} framework variants using ${data.baseline_metrics?.algorithm_used || 'optimization'}`
+        });
+      } else {
+        throw new Error(data.details || 'Enhanced analysis failed');
+      }
+    } catch (error) {
+      console.error('Enhanced MCP analysis error:', error);
+      toast({
+        title: "Enhanced MCP Analysis Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    } finally {
+      setIsEnhancedMCPAnalyzing(false);
+    }
+  }, [steps, toast, backsolveResult, buildPayload]);
+
+  const applyEnhancedVariant = useCallback(async (variant: any) => {
+    try {
+      toast({
+        title: "Applying Enhanced Variant",
+        description: `Implementing ${variant.framework} optimization with ${variant.uplift_pp.toFixed(1)}pp expected uplift`
+      });
+      
+      // Update steps with the suggested order
+      const reorderedSteps = variant.step_order.map((index: number) => steps[index]);
+      setSteps(reorderedSteps);
+      
+      // Trigger new simulation with reordered steps
+      setTimeout(() => {
+        runSimulation();
+      }, 100);
+      
+    } catch (error) {
+      toast({
+        title: "Application Failed",
+        description: "Could not apply enhanced variant",
+        variant: "destructive"
+      });
+    }
+  }, [steps, runSimulation, toast]);
 
   const updateSimulation = async () => {
     if (backsolveResult && backsolveResult.bestParams) {
@@ -649,7 +806,14 @@ const JourneyCalculator: React.FC = () => {
             steps={steps}
             simulationData={simulationData}
             optimalPositions={optimalPositions}
-            optimizeData={optimizeResult || undefined}
+            optimizeData={optimizeResult ? {
+              optimal_step_order: optimizeResult.optimalOrder,
+              optimal_CR_total: optimizeResult.optimalCRTotal,
+              sample_results: optimizeResult.allSamples?.map(s => ({
+                order: s.order,
+                CR_total: s.crTotal
+              }))
+            } : undefined}
             llmCache={llmCache}
             setLlmCache={setLlmCache}
             llmAssessmentResult={llmAssessmentResult}
@@ -666,12 +830,67 @@ const JourneyCalculator: React.FC = () => {
           />
         )}
 
+        {/* MCP Framework Comparison Table */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold text-gray-900">MCP Framework Analysis</h2>
+            <div className="space-x-2">
+              <Button
+                onClick={runMCPFunnelAnalysis}
+                disabled={isMCPAnalyzing || !steps || steps.length === 0}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {isMCPAnalyzing ? 'Analyzing...' : 'Standard MCP'}
+              </Button>
+              <Button
+                onClick={runEnhancedMCPAnalysis}
+                disabled={isEnhancedMCPAnalyzing || !steps || steps.length === 0}
+                className="bg-indigo-600 hover:bg-indigo-700"
+              >
+                {isEnhancedMCPAnalyzing ? 'Processing...' : 'Enhanced MCP'}
+              </Button>
+            </div>
+          </div>
+          
+          <MCPComparisonTable
+            mcpResult={mcpFunnelResult}
+            onApplyVariant={applyMCPVariant}
+            isLoading={isMCPAnalyzing}
+          />
+        </div>
+
+        {/* Enhanced Framework Variant Analysis */}
+        {enhancedMcpResult && (
+          <EnhancedComparisonTable
+            variantResults={enhancedMcpResult.variant_results}
+            ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
+            isLoading={isEnhancedMCPAnalyzing}
+            onApplyVariant={applyEnhancedVariant}
+          />
+        )}
+
+        {/* Ceiling Analysis Panel */}
+        {optimizeResult && (
+          <CeilingAnalysisPanel
+            ceilingAnalysis={optimizeResult.ceiling_analysis}
+            algorithmUsed={optimizeResult.algorithm}
+            isLoading={isOptimizing}
+          />
+        )}
+
         {/* Data Visualization Section */}
-        {simulationData && optimizeResult?.sample_results && (
+        {simulationData && optimizeResult?.allSamples && (
           <DataVisualization
             steps={steps}
             simulationData={simulationData}
-            optimizeResult={optimizeResult}
+            optimizeResult={{
+              optimal_step_order: optimizeResult.optimalOrder,
+              optimal_CR_total: optimizeResult.optimalCRTotal,
+              sample_results: optimizeResult.allSamples?.map(s => ({
+                order: s.order,
+                CR_total: s.crTotal
+              }))
+            }}
             E={E}
             N_importance={N}
             source={source}

@@ -24,6 +24,52 @@ export interface LLMAssessmentResult {
   assessments: LLMStepAssessment[];
 }
 
+// MCP-specific interfaces
+export interface MCPStepAssessment {
+  stepIndex: number;
+  suggestions: LLMFrameworkSuggestion[];
+  estimated_uplift: number;
+  new_CR_s?: number;
+}
+
+export interface MCPOrderRecommendation {
+  framework: string;
+  recommendedOrder: number[];
+  expected_CR_total: number;
+}
+
+export interface MCPAssessmentResult {
+  assessments: MCPStepAssessment[];
+  order_recommendations: MCPOrderRecommendation[];
+  baseline_CR_total: number;
+  boosted_CR_total: number;
+  uplift_total: number;
+}
+
+export interface MCPFunnelVariant {
+  framework: string;
+  step_order: number[];
+  CR_total: number;
+  uplift_pp: number;
+  suggestions: Array<{
+    framework: string;
+    revisedText: string;
+    rationale: string;
+    estimated_uplift: number;
+  }>;
+}
+
+export interface MCPFunnelResult {
+  baselineCR: number;
+  variants: MCPFunnelVariant[];
+  metadata: {
+    totalVariants: number;
+    topPerformer: MCPFunnelVariant;
+    averageUplift: number;
+    frameworksAnalyzed: string[];
+  };
+}
+
 export interface Question {
   title: string;
   input_type: string;

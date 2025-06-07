@@ -16,17 +16,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       w_c, w_f, 
       w_E, w_N, 
       U0, 
-      sample_count,
+      sample_count = 10000,
       use_backsolved_constants = false,
       best_k,
       best_gamma_exit,
-      include_sample_results = false  // Optional: whether to return all sampled permutations
+      include_sample_results = false,
+      apply_llm_uplift = true,  // NEW: Apply LLM suggestions per action plan
+      llm_assessments = []      // NEW: LLM assessment results per step
     } = req.body;
 
-    // We'll perform a simple random‐sampling optimization over "numSamples" permutations.
     const N = steps.length;
 
-    // Helper: a function to shuffle an array copy
+    // Helper: Generate all permutations for exhaustive search (N ≤ 7)
+    function* permutations(arr: any[]): Generator<any[]> {
+      if (arr.length <= 1) {
+        yield arr.slice();
+        return;
+      }
+      
+      for (let i = 0; i < arr.length; i++) {
+        const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+        for (const perm of permutations(rest)) {
+          yield [arr[i], ...perm];
+        }
+      }
+    }
+
+    // Helper: Shuffle array for random sampling
     function shuffleArray(arr: any[]) {
       const a = arr.slice();
       for (let i = a.length - 1; i > 0; i--) {
@@ -36,9 +52,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return a;
     }
 
-    // Abstraction: run the same per-step simulation logic as /api/calculate,
-    // but for a specific order of steps. Updated to match YAML specification:
+    // NEW: Apply LLM uplifts to steps before simulation per action plan
+    function applyLLMUplifts(stepsToModify: any[], assessments: any[]) {
+      if (!apply_llm_uplift || !assessments || assessments.length === 0) {
+        return stepsToModify;
+      }
+
+      return stepsToModify.map((step, stepIndex) => {
+        const assessment = assessments.find(a => a.stepIndex === stepIndex);
+        if (!assessment || !assessment.frameworks) {
+          return step;
+        }
+
+        // Apply the best framework's uplift
+        let bestUplift = 0;
+        Object.values(assessment.frameworks).forEach((frameworkData: any) => {
+          if (frameworkData.estimated_uplift_pp > bestUplift) {
+            bestUplift = frameworkData.estimated_uplift_pp;
+          }
+        });
+
+        // Apply uplift to observedCR: CR_s = clamp(CR_s + uplift/100, 0, 1)
+        const originalCR = step.observedCR;
+        const upliftedCR = Math.min(1.0, Math.max(0.0, originalCR + (bestUplift / 100)));
+        
+        console.log(`Step ${stepIndex}: CR ${(originalCR*100).toFixed(1)}% → ${(upliftedCR*100).toFixed(1)}% (+${bestUplift.toFixed(1)}pp)`);
+
+        return {
+          ...step,
+          observedCR: upliftedCR,
+          llm_uplift_applied: bestUplift
+        };
+      });
+    }
+
+    // Simulation function with uplift support
     function simulateOrder(orderedSteps: any[]) {
+      // Apply LLM uplifts before simulation per action plan
+      const enhancedSteps = applyLLMUplifts(orderedSteps, llm_assessments);
+      
       // Source multiplier per YAML
       const sourceMultipliers = {
         paid_search: 1.3,
@@ -54,37 +106,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       let M_prev = Math.min(5, (w_E * E + w_N * N_importance) * S);
 
       // Constants per YAML specification - use backsolved values if provided
-      const k = (use_backsolved_constants && best_k) ? best_k : 0.24; // motivation decay constant
+      const k = (use_backsolved_constants && best_k) ? best_k : 0.24;
       
       // Default gamma_exit by funnel length per YAML - use backsolved value if provided
       let gammaExit;
       if (use_backsolved_constants && best_gamma_exit) {
         gammaExit = best_gamma_exit;
       } else {
-        if (orderedSteps.length <= 6) gammaExit = 1.04;        // short
-        else if (orderedSteps.length <= 12) gammaExit = 0.80;  // medium  
+        if (enhancedSteps.length <= 6) gammaExit = 1.04;        // short
+        else if (enhancedSteps.length <= 12) gammaExit = 0.80;  // medium  
         else gammaExit = 0.60;                                 // long
       }
 
       // α rule per YAML: α = min(3.0, 1 + N/10)
-      let alpha = Math.min(3.0, 1 + orderedSteps.length / 10);
+      let alpha = Math.min(3.0, 1 + enhancedSteps.length / 10);
       
       // β (hard-page penalty) by length per YAML
       let beta;
-      if (orderedSteps.length <= 6) beta = 0.30;        // short
-      else if (orderedSteps.length <= 12) beta = 0.40;  // medium
+      if (enhancedSteps.length <= 6) beta = 0.30;        // short
+      else if (enhancedSteps.length <= 12) beta = 0.40;  // medium
       else beta = 0.50;                                 // long
 
       // γ_boost defaults by length per YAML
       let gammaBoost;
-      if (orderedSteps.length <= 6) gammaBoost = 0.20;      // short
-      else if (orderedSteps.length <= 12) gammaBoost = 0.25; // medium
+      if (enhancedSteps.length <= 6) gammaBoost = 0.20;      // short
+      else if (enhancedSteps.length <= 12) gammaBoost = 0.25; // medium
       else gammaBoost = 0.30;                              // long
 
       let cumulativeCR = 1;
       let burdenStreak = 0;
 
-      orderedSteps.forEach((step: any, idx: number) => {
+      enhancedSteps.forEach((step: any, idx: number) => {
         const s = idx + 1;
         
         // Compute SC_s using YAML Qs scale (1-5)
@@ -93,31 +145,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Map input_type to Qs per YAML interaction scale
           let Q_s;
           switch (q.input_type) {
-            case '1': // Toggle/Yes-No
-              Q_s = 1;
-              break;
-            case '2': // Single dropdown
-              Q_s = 2;
-              break;
-            case '3': // Multi-select/slider
-              Q_s = 3;
-              break;
-            case '4': // Calendar/upload
-              Q_s = 4;
-              break;
-            case '5': // Open text field
-              Q_s = 5;
-              break;
-            default:
-              Q_s = 2; // fallback to dropdown
+            case '1': Q_s = 1; break;  // Toggle/Yes-No
+            case '2': Q_s = 2; break;  // Single dropdown
+            case '3': Q_s = 3; break;  // Multi-select/slider
+            case '4': Q_s = 4; break;  // Calendar/upload
+            case '5': Q_s = 5; break;  // Open text field
+            default: Q_s = 2;          // fallback to dropdown
           }
           
           const I_s = q.invasiveness;
           const D_s = q.difficulty;
           // YAML equation: SC_s = (c1*Qs + c2*Is + c3*Ds) / (c1 + c2 + c3)
-                  const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
-        const denominator = c1 + c2 + c3;
-        sum_SC += numerator / denominator;
+          const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
+          const denominator = c1 + c2 + c3;
+          sum_SC += numerator / denominator;
         });
         
         // Strategy 2: Add epsilon penalty for multiple questions
@@ -130,7 +171,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const SC_s = Math.min(5, Math.max(1, SC_s_raw + epsilonPenalty));
 
         // Progress per YAML: Linear ≤ 6 pages; sqrt for longer funnels
-        const progress = orderedSteps.length <= 6 ? s / orderedSteps.length : Math.sqrt(s / orderedSteps.length);
+        const progress = enhancedSteps.length <= 6 ? s / enhancedSteps.length : Math.sqrt(s / enhancedSteps.length);
         
         // Update burden streak per YAML rule
         if (SC_s >= 4) {
@@ -164,31 +205,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return cumulativeCR;
     }
 
-    // 1) Generate an initial "identity order" and compute its CR
-    let optimalOrder = Array.from({ length: N }, (_, i) => i); // [0, 1, 2, ...]
+    // NEW: Smart algorithm selection per action plan
+    const useExhaustiveSearch = N <= 7;
+    const algorithm = useExhaustiveSearch ? "exhaustive" : "heuristic_sampling";
+    
+    console.log(`📊 Optimization Strategy: ${algorithm} (N=${N})`);
+    console.log(`🔄 ${useExhaustiveSearch ? `All ${factorial(N)} permutations` : `${sample_count} random samples`}`);
+
+    // Calculate factorial for logging
+    function factorial(n: number): number {
+      if (n <= 1) return 1;
+      return n * factorial(n - 1);
+    }
+
+    // 1) Generate initial "identity order" and compute its CR
+    let optimalOrder = Array.from({ length: N }, (_, i) => i);
     let optimalCRTotal = simulateOrder(steps);
     
     // MODEL VALIDATION: Compare predicted vs observed CR for current order
-    // FIXED: observedCR values are already decimals (0.85 = 85%), don't divide by 100
     const currentObservedCR = steps.reduce((total: number, step: any) => total * step.observedCR, 1);
     
-    // DEBUG: Log individual step CRs to diagnose the issue
+    // DEBUG: Log individual step CRs
     console.log(`DEBUG - Individual step observed CRs:`, steps.map((step: any) => `${(step.observedCR * 100).toFixed(1)}%`));
     console.log(`DEBUG - Current observed CR (decimal): ${currentObservedCR}`);
     console.log(`DEBUG - Optimal CR total (decimal): ${optimalCRTotal}`);
     
-    // Safeguard against division by zero or extremely small observed CR
+    // Model reliability check
     let modelAccuracyError = 0;
     let isModelReliable = true;
     let errorWarning = null;
     
-    if (currentObservedCR < 0.0001) { // Less than 0.01%
+    if (currentObservedCR < 0.0001) {
       errorWarning = "Observed CR too low to validate model reliability";
       isModelReliable = false;
       console.log(`Model validation: Observed CR too low (${currentObservedCR}) for reliable validation`);
     } else {
       modelAccuracyError = Math.abs(optimalCRTotal - currentObservedCR) / currentObservedCR;
-      isModelReliable = modelAccuracyError <= 0.15; // Allow 15% error tolerance
+      isModelReliable = modelAccuracyError <= 0.15; // 15% error tolerance
       
       console.log(`Model validation for current order:`);
       console.log(`- Predicted CR: ${(optimalCRTotal * 100).toFixed(2)}%`);
@@ -197,59 +250,101 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       console.log(`- Model reliable: ${isModelReliable}`);
     }
     
-    // Track all samples if requested per YAML specification
-    const sampleResults: Array<{ order: number[], CR_total: number }> = [];
-    if (include_sample_results) {
-      sampleResults.push({ order: [...optimalOrder], CR_total: optimalCRTotal });
+    // Track all samples if requested
+    const allSamples: Array<{ order: number[], crTotal: number }> = [];
+    
+    let samplesEvaluated = 0;
+
+    if (useExhaustiveSearch) {
+      // EXHAUSTIVE SEARCH: Evaluate all permutations
+      console.log(`🔄 Starting exhaustive search of all ${factorial(N)} permutations...`);
+      
+      for (const perm of permutations(Array.from({ length: N }, (_, i) => i))) {
+        const reorderedSteps = perm.map(i => steps[i]);
+        const crTotal = simulateOrder(reorderedSteps);
+        
+        if (include_sample_results) {
+          allSamples.push({ order: perm, crTotal });
+        }
+        
+        if (crTotal > optimalCRTotal) {
+          optimalCRTotal = crTotal;
+          optimalOrder = perm;
+        }
+        
+        samplesEvaluated++;
+      }
+    } else {
+      // HEURISTIC SAMPLING: Random permutations + some systematic patterns
+      console.log(`🔄 Starting heuristic sampling of ${sample_count} permutations...`);
+      
+      for (let trial = 0; trial < sample_count; trial++) {
+        let permOrder;
+        
+        // Mix random with some systematic patterns
+        if (trial < 100) {
+          // First 100: Try systematic patterns (reverse, middle-out, etc.)
+          if (trial === 0) permOrder = Array.from({ length: N }, (_, i) => N - 1 - i); // reverse
+          else if (trial === 1) permOrder = Array.from({ length: N }, (_, i) => i); // identity
+          else permOrder = shuffleArray(Array.from({ length: N }, (_, i) => i));
+        } else {
+          // Rest: Pure random sampling
+          permOrder = shuffleArray(Array.from({ length: N }, (_, i) => i));
+        }
+        
+        const reorderedSteps = permOrder.map(i => steps[i]);
+        const crTotal = simulateOrder(reorderedSteps);
+        
+        if (include_sample_results) {
+          allSamples.push({ order: permOrder, crTotal });
+        }
+        
+        if (crTotal > optimalCRTotal) {
+          optimalCRTotal = crTotal;
+          optimalOrder = permOrder;
+        }
+        
+        samplesEvaluated++;
+      }
     }
 
-    // 2) Run random permutations for "sample_count" times
-    for (let i = 0; i < sample_count; i++) {
-      // Create a shuffled index array
-      const shuffledIndices = shuffleArray(Array.from({ length: N }, (_, i) => i));
-      
-      // Create the corresponding shuffled steps
-      const shuffledSteps = shuffledIndices.map(idx => steps[idx]);
-      
-      const cr = simulateOrder(shuffledSteps);
-      
-      // Track this sample if requested
-      if (include_sample_results) {
-        sampleResults.push({ order: shuffledIndices, CR_total: cr });
-      }
-      
-      if (cr > optimalCRTotal) {
-        optimalCRTotal = cr;
-        optimalOrder = shuffledIndices;
-      }
-    }
+    // Calculate model ceiling vs baseline per action plan
+    const baselineCR = currentObservedCR;
+    const modelCeilingCR = optimalCRTotal;
+    const potentialGainPP = (modelCeilingCR - baselineCR) * 100;
 
-    // 3) Prepare response per YAML specification
-    const response: any = {
-      optimal_step_order: optimalOrder,
-      optimal_CR_total: optimalCRTotal,
-      // Add model validation info
+    console.log(`Optimize completed: tested ${samplesEvaluated} permutations, best CR: ${optimalCRTotal}`);
+    console.log(`📊 Model Ceiling Analysis:`);
+    console.log(`- Baseline (Observed) CR: ${(baselineCR * 100).toFixed(2)}%`);
+    console.log(`- Best-Modelled CR: ${(modelCeilingCR * 100).toFixed(2)}%`);
+    console.log(`- Potential Gain: ${potentialGainPP.toFixed(2)} pp`);
+
+    // Prepare response with ceiling analysis per action plan
+    const response = {
+      optimalOrder,
+      optimalCRTotal,
+      algorithm,
+      samplesEvaluated,
       model_validation: {
-        current_predicted_CR: optimalCRTotal,
         current_observed_CR: currentObservedCR,
-        accuracy_error_percent: modelAccuracyError * 100,
+        current_predicted_CR: optimalCRTotal,
+        accuracy_error: modelAccuracyError,
         is_reliable: isModelReliable,
-        warning: errorWarning || (!isModelReliable ? 
-          "Model predictions differ significantly from observed data. Optimization results may be unreliable." : 
-          null)
-      }
+        error_warning: errorWarning
+      },
+      ceiling_analysis: {
+        baseline_CR: baselineCR,
+        model_ceiling_CR: modelCeilingCR,
+        potential_gain_pp: potentialGainPP,
+        improvement_possible: potentialGainPP > 0.5 // Worth optimizing if >0.5pp gain
+      },
+      llm_uplifts_applied: apply_llm_uplift && llm_assessments.length > 0,
+      ...(include_sample_results && { allSamples })
     };
-
-    // Add sample_results if requested
-    if (include_sample_results) {
-      response.sample_results = sampleResults;
-    }
-
-    console.log(`Optimize completed: tested ${sample_count + 1} permutations, best CR: ${optimalCRTotal}`);
 
     res.status(200).json(response);
   } catch (err: any) {
-    console.error("Error in /api/optimize:", err);
-    res.status(500).json({ error: "Error in optimize API", details: err.message });
+    console.error("Optimization error:", err);
+    res.status(500).json({ error: "Optimization failed", details: err.message });
   }
 }
