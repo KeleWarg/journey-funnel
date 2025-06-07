@@ -43,7 +43,7 @@ const OptimizeControls: React.FC<OptimizeControlsProps> = ({
               min={100}
               max={10000}
               value={numSamples}
-              onChange={(e) => setNumSamples(parseInt(e.target.value) || 1000)}
+              onChange={(e) => setNumSamples(parseInt(e.target.value) || 5000)}
               className="w-32 border-gray-300 focus:border-indigo-500"
             />
           </div>

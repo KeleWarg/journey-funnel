@@ -92,10 +92,29 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
                     max={1}
                     value={step.observedCR}
                     onChange={(e) => onUpdateStep(stepIndex, { observedCR: parseFloat(e.target.value) || 0 })}
-                    className="w-24 border-gray-300 focus:border-blue-500"
+                    className={`w-24 focus:border-blue-500 ${
+                      step.observedCR < 0.05 ? 'border-yellow-400 bg-yellow-50' : 
+                      step.observedCR > 0.95 ? 'border-yellow-400 bg-yellow-50' : 
+                      'border-gray-300'
+                    }`}
                     title="Actual conversion rate you saw on this step (for Back-Solve)"
                   />
                   <p className="text-xs text-gray-500">Actual conversion rate you saw on this step (for Back-Solve)</p>
+                  {step.observedCR < 0.05 && step.observedCR > 0 && (
+                    <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200">
+                      ⚠️ Very low CR may cause model reliability issues
+                    </div>
+                  )}
+                  {step.observedCR === 0 && (
+                    <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                      🚫 Zero CR will make total funnel CR zero
+                    </div>
+                  )}
+                  {step.observedCR > 0.95 && (
+                    <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded border border-yellow-200">
+                      ⚠️ Very high CR (&gt;{Math.round(step.observedCR * 100)}%) is uncommon
+                    </div>
+                  )}
                 </div>
               </div>
 

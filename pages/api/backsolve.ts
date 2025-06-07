@@ -56,8 +56,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const M0 = Math.min(5, (w_E * E + w_N * N_importance) * S);
 
     // 3. Set up grid search ranges per YAML back_solve_specification
+    // Expanded k search space to handle sharper decay patterns (0.10 → 1.50)
     const kValues: number[] = [];
-    for (let v = 0.10; v <= 1.00; v += 0.02) {
+    for (let v = 0.10; v <= 1.50; v += 0.02) {
       kValues.push(parseFloat(v.toFixed(2)));
     }
 

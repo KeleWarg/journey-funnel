@@ -9,7 +9,9 @@ import BacksolveResultPanel from '@components/BacksolveResultPanel';
 import OptimizeControls from '@components/OptimizeControls';
 import ResultsTable from '@components/ResultsTable';
 import ExportShareControls from '@components/ExportShareControls';
-import { BacksolveResult, Step, SimulationData } from '../types';
+import DataVisualization from '@components/DataVisualization';
+import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -101,10 +103,12 @@ const JourneyCalculator: React.FC = () => {
   } | null>(null);
   const [optimalPositions, setOptimalPositions] = useState<Record<number, number>>({});
   const [llmCache, setLlmCache] = useState<Record<string, string>>({});
+  const [llmAssessmentResult, setLlmAssessmentResult] = useState<LLMAssessmentResult | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isBacksolving, setIsBacksolving] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [numSamples, setNumSamples] = useState(1000);
+  const [isAssessing, setIsAssessing] = useState(false);
+  const [numSamples, setNumSamples] = useState(5000); // Strategy 3: Increase default search space
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
 
   // Core state
@@ -411,6 +415,66 @@ const JourneyCalculator: React.FC = () => {
     }
   }, [buildPayload, numSamples, toast, backsolveResult]);
 
+  const runLLMAssessment = useCallback(async () => {
+    try {
+      setIsAssessing(true);
+      
+      if (!simulationData || !steps) {
+        throw new Error("Please run simulation first to get predicted conversion rates");
+      }
+
+      // Build payload for LLM assessment
+      const assessmentPayload = {
+        steps: steps.map((step, stepIndex) => ({
+          stepIndex,
+          questionTexts: step.questions.map(q => q.title),
+          Qs: step.questions.length > 0 ? 
+            step.questions.reduce((sum, q) => sum + parseInt(q.input_type || '2'), 0) / step.questions.length : 2,
+          Is: step.questions.length > 0 ? 
+            step.questions.reduce((sum, q) => sum + q.invasiveness, 0) / step.questions.length : 2,
+          Ds: step.questions.length > 0 ? 
+            step.questions.reduce((sum, q) => sum + q.difficulty, 0) / step.questions.length : 2,
+          CR_s: simulationData.predictedSteps[stepIndex]?.CR_s || 0.5
+        }))
+      };
+
+      const response = await fetch('/api/assessSteps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assessmentPayload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        // Special handling for API key not configured
+        if (errorData.error === 'OpenAI API key not configured') {
+          throw new Error('Please add OPENAI_API_KEY to your .env.local file to enable LLM assessments');
+        }
+        
+        throw new Error(errorData.error || errorData.details || 'LLM assessment failed');
+      }
+
+      const data = await response.json();
+      setLlmAssessmentResult(data);
+
+      toast({
+        title: "LLM Assessment Complete",
+        description: `Generated recommendations for ${data.assessments.length} steps using real AI analysis`
+      });
+
+    } catch (error) {
+      console.error('LLM Assessment error:', error);
+      toast({
+        title: "LLM Assessment Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAssessing(false);
+    }
+  }, [steps, simulationData, toast]);
+
   const updateSimulation = async () => {
     if (backsolveResult && backsolveResult.bestParams) {
       // Store current overrides as backup if not already stored
@@ -588,6 +652,39 @@ const JourneyCalculator: React.FC = () => {
             optimizeData={optimizeResult || undefined}
             llmCache={llmCache}
             setLlmCache={setLlmCache}
+            llmAssessmentResult={llmAssessmentResult}
+          />
+        )}
+
+        {/* LLM Assessment Panel */}
+        {simulationData && (
+          <LLMAssessmentPanel
+            assessmentResult={llmAssessmentResult}
+            isLoading={isAssessing}
+            baselineCR={simulationData.CR_total}
+            onRunAssessment={runLLMAssessment}
+          />
+        )}
+
+        {/* Data Visualization Section */}
+        {simulationData && optimizeResult?.sample_results && (
+          <DataVisualization
+            steps={steps}
+            simulationData={simulationData}
+            optimizeResult={optimizeResult}
+            E={E}
+            N_importance={N}
+            source={source}
+            c1={c1}
+            c2={c2}
+            c3={c3}
+            w_c={w_c}
+            w_f={w_f}
+            w_E={w_E}
+            w_N={w_N}
+            use_backsolved_constants={backsolveResult ? true : false}
+            best_k={backsolveResult?.bestParams?.best_k}
+            best_gamma_exit={backsolveResult?.bestParams?.best_gamma_exit}
           />
         )}
 

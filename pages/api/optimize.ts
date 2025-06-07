@@ -115,11 +115,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const I_s = q.invasiveness;
           const D_s = q.difficulty;
           // YAML equation: SC_s = (c1*Qs + c2*Is + c3*Ds) / (c1 + c2 + c3)
-          const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
-          const denominator = c1 + c2 + c3;
-          sum_SC += numerator / denominator;
+                  const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
+        const denominator = c1 + c2 + c3;
+        sum_SC += numerator / denominator;
         });
-        const SC_s = sum_SC / step.questions.length;
+        
+        // Strategy 2: Add epsilon penalty for multiple questions
+        const epsilon_per_extra_question = 0.05;
+        const qCount = step.questions.length;
+        const extraQuestions = Math.max(0, qCount - 1);
+        const epsilonPenalty = epsilon_per_extra_question * extraQuestions;
+        
+        const SC_s_raw = sum_SC / step.questions.length;
+        const SC_s = Math.min(5, Math.max(1, SC_s_raw + epsilonPenalty));
 
         // Progress per YAML: Linear ≤ 6 pages; sqrt for longer funnels
         const progress = orderedSteps.length <= 6 ? s / orderedSteps.length : Math.sqrt(s / orderedSteps.length);
@@ -160,6 +168,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let optimalOrder = Array.from({ length: N }, (_, i) => i); // [0, 1, 2, ...]
     let optimalCRTotal = simulateOrder(steps);
     
+    // MODEL VALIDATION: Compare predicted vs observed CR for current order
+    // FIXED: observedCR values are already decimals (0.85 = 85%), don't divide by 100
+    const currentObservedCR = steps.reduce((total: number, step: any) => total * step.observedCR, 1);
+    
+    // DEBUG: Log individual step CRs to diagnose the issue
+    console.log(`DEBUG - Individual step observed CRs:`, steps.map((step: any) => `${(step.observedCR * 100).toFixed(1)}%`));
+    console.log(`DEBUG - Current observed CR (decimal): ${currentObservedCR}`);
+    console.log(`DEBUG - Optimal CR total (decimal): ${optimalCRTotal}`);
+    
+    // Safeguard against division by zero or extremely small observed CR
+    let modelAccuracyError = 0;
+    let isModelReliable = true;
+    let errorWarning = null;
+    
+    if (currentObservedCR < 0.0001) { // Less than 0.01%
+      errorWarning = "Observed CR too low to validate model reliability";
+      isModelReliable = false;
+      console.log(`Model validation: Observed CR too low (${currentObservedCR}) for reliable validation`);
+    } else {
+      modelAccuracyError = Math.abs(optimalCRTotal - currentObservedCR) / currentObservedCR;
+      isModelReliable = modelAccuracyError <= 0.15; // Allow 15% error tolerance
+      
+      console.log(`Model validation for current order:`);
+      console.log(`- Predicted CR: ${(optimalCRTotal * 100).toFixed(2)}%`);
+      console.log(`- Observed CR: ${(currentObservedCR * 100).toFixed(2)}%`);
+      console.log(`- Error: ${(modelAccuracyError * 100).toFixed(1)}%`);
+      console.log(`- Model reliable: ${isModelReliable}`);
+    }
+    
     // Track all samples if requested per YAML specification
     const sampleResults: Array<{ order: number[], CR_total: number }> = [];
     if (include_sample_results) {
@@ -190,7 +227,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 3) Prepare response per YAML specification
     const response: any = {
       optimal_step_order: optimalOrder,
-      optimal_CR_total: optimalCRTotal
+      optimal_CR_total: optimalCRTotal,
+      // Add model validation info
+      model_validation: {
+        current_predicted_CR: optimalCRTotal,
+        current_observed_CR: currentObservedCR,
+        accuracy_error_percent: modelAccuracyError * 100,
+        is_reliable: isModelReliable,
+        warning: errorWarning || (!isModelReliable ? 
+          "Model predictions differ significantly from observed data. Optimization results may be unreliable." : 
+          null)
+      }
     };
 
     // Add sample_results if requested

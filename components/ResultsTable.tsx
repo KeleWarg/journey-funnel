@@ -23,6 +23,12 @@ interface ResultsTableProps {
   };
   llmCache: Record<string, string>;
   setLlmCache: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  llmAssessmentResult?: {
+    assessments: Array<{
+      stepIndex: number;
+      estimated_uplift: number;
+    }>;
+  } | null;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -31,7 +37,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   optimalPositions,
   optimizeData,
   llmCache,
-  setLlmCache
+  setLlmCache,
+  llmAssessmentResult
 }) => {
 
   
@@ -100,6 +107,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
                 Predicted CR
+              </th>
+              <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
+                LLM Improvement
               </th>
             </tr>
           </thead>
@@ -172,6 +182,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   ? (simulationData.predictedSteps[stepIndex].CR_s * 100).toFixed(2) + '%'
                   : '—'
                 }
+              </td>
+
+              {/* LLM Improvement */}
+              <td className="border-2 border-gray-800 px-4 py-3 text-center text-sm font-mono font-semibold text-purple-700">
+                {(() => {
+                  if (!llmAssessmentResult) return '—';
+                  const assessment = llmAssessmentResult.assessments.find(a => a.stepIndex === stepIndex);
+                  if (!assessment) return '—';
+                  return `+${(assessment.estimated_uplift * 100).toFixed(1)}pp`;
+                })()}
               </td>
 
             </tr>

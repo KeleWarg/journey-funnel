@@ -7,6 +7,23 @@ export interface FrameworkAssessment {
   rewrittenQuestion?: string;
 }
 
+// New LLM Assessment interfaces
+export interface LLMFrameworkSuggestion {
+  framework: string;
+  revisedText: string;
+  rationale: string;
+}
+
+export interface LLMStepAssessment {
+  stepIndex: number;
+  suggestions: LLMFrameworkSuggestion[];
+  estimated_uplift: number;
+}
+
+export interface LLMAssessmentResult {
+  assessments: LLMStepAssessment[];
+}
+
 export interface Question {
   title: string;
   input_type: string;
