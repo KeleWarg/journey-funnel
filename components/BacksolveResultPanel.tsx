@@ -7,15 +7,15 @@ import { BacksolveResult } from '../types';
 
 interface BacksolveResultPanelProps {
   backsolveResult: BacksolveResult;
-  onApplyBacksolve: () => void;
-  onUndoBacksolve: () => void;
+  onUpdateSimulation: () => void;
+  onRestoreDefault: () => void;
   backupOverrides: Record<string, number> | null;
 }
 
 const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
   backsolveResult,
-  onApplyBacksolve,
-  onUndoBacksolve,
+  onUpdateSimulation,
+  onRestoreDefault,
   backupOverrides
 }) => {
   return (
@@ -62,26 +62,26 @@ const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-3">
               <Button
-                onClick={onApplyBacksolve}
+                onClick={onUpdateSimulation}
                 className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
               >
-                Apply Back-Solve Constants
+                Update Simulation
               </Button>
               
               {backupOverrides && (
                 <Button
-                  onClick={onUndoBacksolve}
+                  onClick={onRestoreDefault}
                   variant="outline"
                   className="text-red-600 border-red-300 hover:bg-red-50"
                 >
-                  Undo Back-Solve
+                  Restore to Default
                 </Button>
               )}
             </div>
 
             {/* Help Text */}
             <p className="text-xs text-gray-600">
-              Apply these constants to update your current configuration, or undo to restore previous values.
+              Update Simulation applies these constants and runs a new simulation, or restore to return to default values.
             </p>
 
           </CardContent>

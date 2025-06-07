@@ -411,21 +411,29 @@ const JourneyCalculator: React.FC = () => {
     }
   }, [buildPayload, numSamples, toast, backsolveResult]);
 
-  const applyBacksolve = () => {
+  const updateSimulation = async () => {
     if (backsolveResult && backsolveResult.bestParams) {
-      setBackupOverrides({ 
-        k: backsolveResult.bestParams.best_k, 
-        gamma_exit: backsolveResult.bestParams.best_gamma_exit
-      });
+      // Store current overrides as backup if not already stored
+      if (!backupOverrides) {
+        setBackupOverrides(overrides);
+      }
+      
+      // Apply the backsolve parameters
       setOverrides({
         k: backsolveResult.bestParams.best_k,
-        gamma_exit: backsolveResult.bestParams.best_gamma_exit
+        gamma_exit: backsolveResult.bestParams.best_gamma_exit,
+        epsilon: overrides.epsilon // Keep existing epsilon if any
       });
       
       toast({
         title: "Parameters Applied",
-        description: `Applied k=${backsolveResult.bestParams.best_k}, gamma_exit=${backsolveResult.bestParams.best_gamma_exit}, MSE=${backsolveResult.bestParams.best_mse.toFixed(4)}`
+        description: `Applied k=${backsolveResult.bestParams.best_k}, gamma_exit=${backsolveResult.bestParams.best_gamma_exit}`
       });
+      
+      // Automatically run simulation with new parameters
+      setTimeout(() => {
+        runSimulation();
+      }, 100); // Small delay to ensure state is updated
     } else {
       toast({
         title: "Cannot Apply Parameters",
@@ -435,10 +443,23 @@ const JourneyCalculator: React.FC = () => {
     }
   };
 
-  const undoBacksolve = () => {
-    if (backupOverrides) {
+  const restoreToDefault = () => {
+    if (backupOverrides !== null) {
       setOverrides(backupOverrides);
       setBackupOverrides(null);
+      
+      toast({
+        title: "Parameters Restored",
+        description: "Restored to default parameter values"
+      });
+    } else {
+      // If no backup, restore to completely empty overrides (system defaults)
+      setOverrides({});
+      
+      toast({
+        title: "Parameters Restored",
+        description: "Restored to system default values"
+      });
     }
   };
 
@@ -544,8 +565,8 @@ const JourneyCalculator: React.FC = () => {
         {backsolveResult && (
           <BacksolveResultPanel
             backsolveResult={backsolveResult}
-            onApplyBacksolve={applyBacksolve}
-            onUndoBacksolve={undoBacksolve}
+            onUpdateSimulation={updateSimulation}
+            onRestoreDefault={restoreToDefault}
             backupOverrides={backupOverrides}
           />
         )}
