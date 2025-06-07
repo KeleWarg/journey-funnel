@@ -77,10 +77,18 @@ export interface Question {
   difficulty: number;
 }
 
+export interface BoostElement {
+  id: string;
+  text: string;
+  category?: string;
+  score?: number;
+}
+
 export interface Step {
   boosts: number;
   observedCR: number;
   questions: Question[];
+  boostElements?: BoostElement[];
 }
 
 export interface SimulationData {

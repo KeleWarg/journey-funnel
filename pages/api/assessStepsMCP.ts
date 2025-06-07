@@ -99,6 +99,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!mcpResponse.assessments || !Array.isArray(mcpResponse.assessments)) {
       console.error('Invalid MCP response structure:', mcpResponse);
+      console.error('Response type:', typeof mcpResponse);
+      console.error('Response keys:', Object.keys(mcpResponse || {}));
+      console.error('Assessments type:', typeof mcpResponse?.assessments);
+      console.error('Raw response was:', mcpRawResponse);
       throw new Error('MCP response missing assessments array');
     }
 

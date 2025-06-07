@@ -15,7 +15,8 @@ import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
 import MCPComparisonTable from '@components/MCPComparisonTable';
 import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
 import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
-import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant } from '../types';
+import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -92,7 +93,8 @@ const JourneyCalculator: React.FC = () => {
         invasiveness: 2,
         difficulty: 1
       }
-    ]
+    ],
+    boostElements: []
   }]);
   const [journeyType, setJourneyType] = useState<JourneyType>('transactional');
   const [backsolveResult, setBacksolveResult] = useState<BacksolveResult | null>(null);
@@ -129,6 +131,7 @@ const JourneyCalculator: React.FC = () => {
   const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
   const [numSamples, setNumSamples] = useState(5000); // Strategy 3: Increase default search space
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
+  const [isClassifyingBoosts, setIsClassifyingBoosts] = useState(false);
 
   // Core state
   const [E, setE] = useState(3);
@@ -166,7 +169,8 @@ const JourneyCalculator: React.FC = () => {
     setSteps([...steps, { 
       boosts: 0,
       observedCR: 0.8,
-      questions: []
+      questions: [],
+      boostElements: []
     }]);
   };
 
@@ -218,6 +222,105 @@ const JourneyCalculator: React.FC = () => {
       }
       return step;
     }));
+  };
+
+  // Boost elements management
+  const handleBoostElementsChange = (stepIndex: number, elements: BoostElement[]) => {
+    setSteps(steps.map((step, i) => {
+      if (i === stepIndex) {
+        return {
+          ...step,
+          boostElements: elements
+        };
+      }
+      return step;
+    }));
+  };
+
+  const handleClassifyBoostElements = async (stepIndex: number, elements: BoostElement[]) => {
+    try {
+      setIsClassifyingBoosts(true);
+      
+      // Validate input before sending
+      if (!Array.isArray(elements)) {
+        throw new Error('Elements must be an array');
+      }
+      
+      if (elements.length === 0) {
+        throw new Error('No boost elements to classify');
+      }
+      
+      // Validate each element has required fields
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+        if (!element.id || !element.text) {
+          throw new Error(`Element ${i + 1} is missing required fields (id or text)`);
+        }
+      }
+      
+      console.log('Classifying boost elements:', { stepIndex, elements });
+      
+      const response = await fetch('/api/assessBoostElements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stepIndex, boostElements: elements })
+      });
+      
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${errorText || 'Unknown error'}` };
+        }
+        throw new Error(errorData.error || errorData.details || 'Classification failed');
+      }
+      
+      const data = await response.json();
+      
+      // Update the elements with classification results
+      const updatedElements = elements.map((element) => {
+        const classification = data.classifiedBoosts?.find((boost: any) => boost.id === element.id);
+        return {
+          ...element,
+          category: classification?.category,
+          score: classification?.score
+        };
+      });
+      
+      // Update the boost score from total classified score
+      const totalScore = data.stepBoostTotal || 0;
+      const cappedScore = data.cappedBoosts || Math.min(totalScore, 5);
+      
+      setSteps(steps.map((step, i) => {
+        if (i === stepIndex) {
+          return {
+            ...step,
+            boostElements: updatedElements,
+            boosts: cappedScore
+          };
+        }
+        return step;
+      }));
+      
+      toast({
+        title: "Boost Elements Classified",
+        description: `Total boost score: ${cappedScore}/5 (${totalScore > 5 ? 'capped' : 'applied'})`
+      });
+    } catch (error) {
+      console.error('Boost classification error:', error);
+      toast({
+        title: "Classification Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsClassifyingBoosts(false);
+    }
   };
 
   // Build payload for API calls
@@ -457,24 +560,62 @@ const JourneyCalculator: React.FC = () => {
         }))
       };
 
-      const response = await fetch('/api/assessStepsMCP', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(assessmentPayload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      // Try MCP assessment with timeout and fallback
+      let data;
+      try {
+        console.log('Attempting MCP assessment...');
         
-        // Special handling for API key not configured
-        if (errorData.error === 'OpenAI API key not configured') {
-          throw new Error('Please add OPENAI_API_KEY to your .env.local file to enable LLM assessments');
+        // Create a timeout promise (45 seconds to be safe)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('MCP assessment timeout')), 45000)
+        );
+        
+        const fetchPromise = fetch('/api/assessStepsMCP', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(assessmentPayload)
+        });
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          
+          // Special handling for API key not configured
+          if (errorData.error === 'OpenAI API key not configured') {
+            throw new Error('Please add OPENAI_API_KEY to your .env.local file to enable LLM assessments');
+          }
+          
+          throw new Error(errorData.error || errorData.details || 'MCP assessment failed');
         }
-        
-        throw new Error(errorData.error || errorData.details || 'LLM assessment failed');
-      }
 
-      const data = await response.json();
+        data = await response.json();
+        console.log('MCP assessment successful');
+        
+      } catch (mcpError) {
+        console.warn('MCP assessment failed, falling back to basic assessment:', mcpError);
+        
+        // Fallback to basic assessment without MCP
+        const fallbackResponse = await fetch('/api/assessSteps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(assessmentPayload)
+        });
+
+        if (!fallbackResponse.ok) {
+          const errorData = await fallbackResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || errorData.details || 'Assessment failed completely');
+        }
+
+        data = await fallbackResponse.json();
+        console.log('Fallback assessment successful');
+        
+        toast({
+          title: "Fallback Assessment Used",
+          description: "MCP server timed out, used basic assessment instead",
+          variant: "default"
+        });
+      }
       setLlmAssessmentResult(data);
 
       toast({
@@ -502,28 +643,48 @@ const JourneyCalculator: React.FC = () => {
         throw new Error("Please configure funnel steps first");
       }
 
-      // Call MCP manusFunnel orchestrator function
-      const response = await fetch('/api/manusFunnel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          steps: steps,
-          frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini', 'SCARF', 'JTBD', 'TOTE', 'ELM']
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      // Call MCP manusFunnel orchestrator function with timeout
+      let data;
+      try {
+        console.log('Attempting MCP funnel analysis...');
         
-        // Special handling for MCP not available
-        if (errorData.error === 'MCP client not available') {
-          throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
+        // Create a timeout promise (45 seconds)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('MCP funnel analysis timeout')), 45000)
+        );
+        
+        const fetchPromise = fetch('/api/manusFunnel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            steps: steps,
+            frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini', 'SCARF', 'JTBD', 'TOTE', 'ELM']
+          })
+        });
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          
+          // Special handling for MCP not available
+          if (errorData.error === 'MCP client not available') {
+            throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
+          }
+          
+          throw new Error(errorData.error || errorData.details || 'MCP funnel analysis failed');
         }
-        
-        throw new Error(errorData.error || errorData.details || 'MCP funnel analysis failed');
-      }
 
-      const data = await response.json();
+        data = await response.json();
+        console.log('MCP funnel analysis successful');
+        
+      } catch (mcpError) {
+        console.warn('MCP funnel analysis failed:', mcpError);
+        
+        // For now, throw the error as there's no fallback for funnel analysis
+        // In the future, you could implement a simplified analysis here
+        throw new Error(`MCP funnel analysis failed: ${mcpError instanceof Error ? mcpError.message : 'Unknown error'}`);
+      }
       setMcpFunnelResult(data);
 
       toast({
@@ -684,6 +845,29 @@ const JourneyCalculator: React.FC = () => {
     }
   };
 
+  // Get current step order (indices)
+  const getCurrentStepOrder = (): number[] => {
+    return steps.map((_, index) => index);
+  };
+
+  // Apply recommended order from MCP assessment
+  const applyRecommendedOrder = (orderRecommendation: MCPOrderRecommendation) => {
+    const newOrder = orderRecommendation.recommendedOrder;
+    const reorderedSteps = newOrder.map(index => steps[index]);
+    
+    setSteps(reorderedSteps);
+    
+    toast({
+      title: "Step Order Applied",
+      description: `Applied ${orderRecommendation.framework} recommended order: ${newOrder.map(i => `Step ${i + 1}`).join(' → ')}`
+    });
+
+    // Automatically run simulation with new order
+    setTimeout(() => {
+      runSimulation();
+    }, 100);
+  };
+
   // Validation
   const canRunSimulation = steps && steps.length > 0 && steps.every(step => 
     step && 
@@ -770,6 +954,9 @@ const JourneyCalculator: React.FC = () => {
           inputTypeOptions={inputTypeOptions}
           invasivenessOptions={invasivenessOptions}
           difficultyOptions={difficultyOptions}
+          onBoostElementsChange={handleBoostElementsChange}
+          onClassifyBoostElements={handleClassifyBoostElements}
+          isClassifyingBoosts={isClassifyingBoosts}
         />
 
         {/* Simulation & Back-solve Controls */}
@@ -820,14 +1007,27 @@ const JourneyCalculator: React.FC = () => {
           />
         )}
 
-        {/* LLM Assessment Panel */}
+        {/* Framework Suggestions Panel */}
         {simulationData && (
-          <LLMAssessmentPanel
-            assessmentResult={llmAssessmentResult}
-            isLoading={isAssessing}
-            baselineCR={simulationData.CR_total}
-            onRunAssessment={runLLMAssessment}
-          />
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">Framework Analysis & Suggestions</h2>
+              <Button
+                onClick={runLLMAssessment}
+                disabled={isAssessing || !steps || steps.length === 0}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isAssessing ? 'Analyzing...' : 'Analyze with MCP'}
+              </Button>
+            </div>
+            <FrameworkSuggestionsPanel
+              assessmentResult={llmAssessmentResult as MCPAssessmentResult}
+              isLoading={isAssessing}
+              baselineCR={simulationData.CR_total}
+              onApplyRecommendedOrder={applyRecommendedOrder}
+              currentStepOrder={getCurrentStepOrder()}
+            />
+          </div>
         )}
 
         {/* MCP Framework Comparison Table */}

@@ -5,7 +5,8 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Trash2Icon, PlusIcon } from 'lucide-react';
-import { Question, Step } from '../types';
+import { Question, Step, BoostElement } from '../types';
+import BoostElementsControl from './BoostElementsControl';
 
 interface StepsEditorProps {
   steps: Step[];
@@ -18,6 +19,9 @@ interface StepsEditorProps {
   inputTypeOptions: { value: string; label: string }[];
   invasivenessOptions: { value: number; label: string }[];
   difficultyOptions: { value: number; label: string }[];
+  onBoostElementsChange?: (stepIndex: number, elements: BoostElement[]) => void;
+  onClassifyBoostElements?: (stepIndex: number, elements: BoostElement[]) => Promise<void>;
+  isClassifyingBoosts?: boolean;
 }
 
 const StepsEditor: React.FC<StepsEditorProps> = ({
@@ -30,7 +34,10 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
   onUpdateQuestion,
   inputTypeOptions,
   invasivenessOptions,
-  difficultyOptions
+  difficultyOptions,
+  onBoostElementsChange,
+  onClassifyBoostElements,
+  isClassifyingBoosts
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm">
@@ -117,6 +124,18 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Boost Elements */}
+              {onBoostElementsChange && (
+                <BoostElementsControl
+                  stepIndex={stepIndex}
+                  elements={step.boostElements || []}
+                  onElementsChange={onBoostElementsChange}
+                  onClassifyElements={onClassifyBoostElements}
+                  isClassifying={isClassifyingBoosts}
+                  maxBoostScore={5}
+                />
+              )}
 
               {/* Questions List */}
               <div className="space-y-3">

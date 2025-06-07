@@ -201,6 +201,19 @@ async def handle_list_tools() -> List[Tool]:
                 },
                 "required": ["steps", "frameworks"]
             }
+        ),
+        Tool(
+            name="assessBoostElements",
+            description="Classify and score boost elements for funnel steps",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "stepIndex": {"type": "number"},
+                    "boostElements": {"type": "array"},
+                    "categories": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["stepIndex", "boostElements"]
+            }
         )
     ]
 
@@ -212,6 +225,8 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[types.T
         return await handle_assess_steps_fast(arguments)
     elif name == "manusFunnel":
         return await handle_manus_funnel_fast(arguments)
+    elif name == "assessBoostElements":
+        return await handle_assess_boost_elements_fast(arguments)
     else:
         raise ValueError(f"Unknown tool: {name}")
 
@@ -363,6 +378,72 @@ async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.Text
     }
     
     logger.info(f"✅ Fast funnel analysis completed - {len(variants)} variants")
+    
+    return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
+
+async def handle_assess_boost_elements_fast(arguments: Dict[str, Any]) -> List[types.TextContent]:
+    """Fast boost element classification"""
+    
+    step_index = arguments.get("stepIndex", 0)
+    boost_elements = arguments.get("boostElements", [])
+    categories = arguments.get("categories", [
+        "social-proof", "authority", "urgency", "scarcity", 
+        "visual", "security", "progress", "personalization"
+    ])
+    
+    logger.info(f"🔍 Fast Boost Assessment: {len(boost_elements)} elements for step {step_index}")
+    
+    # Simple rule-based classification for fast processing
+    classified_boosts = []
+    
+    for element in boost_elements:
+        element_id = element.get("id", "")
+        element_text = element.get("text", "").lower()
+        
+        # Rule-based scoring
+        category = "visual"
+        score = 1
+        
+        if any(keyword in element_text for keyword in ["testimonial", "review", "customers", "users", "ratings"]):
+            category = "social-proof"
+            score = 3
+        elif any(keyword in element_text for keyword in ["secure", "ssl", "encrypted", "trusted", "verified"]):
+            category = "security" 
+            score = 3
+        elif any(keyword in element_text for keyword in ["limited", "exclusive", "only", "few left"]):
+            category = "scarcity"
+            score = 2
+        elif any(keyword in element_text for keyword in ["urgent", "deadline", "expires", "hurry", "now"]):
+            category = "urgency"
+            score = 2
+        elif any(keyword in element_text for keyword in ["expert", "certified", "award", "professional", "endorsed"]):
+            category = "authority"
+            score = 4
+        elif any(keyword in element_text for keyword in ["progress", "step", "completion", "indicator"]):
+            category = "progress"
+            score = 2
+        elif any(keyword in element_text for keyword in ["personalized", "customized", "tailored", "for you"]):
+            category = "personalization"
+            score = 3
+        elif any(keyword in element_text for keyword in ["logo", "badge", "icon", "image"]):
+            category = "visual"
+            score = 1
+        
+        classified_boosts.append({
+            "id": element_id,
+            "category": category,
+            "score": score
+        })
+    
+    step_boost_total = sum(boost["score"] for boost in classified_boosts)
+    
+    result = {
+        "classifiedBoosts": classified_boosts,
+        "stepBoostTotal": step_boost_total,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    logger.info(f"✅ Boost classification completed: total score {step_boost_total}")
     
     return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
