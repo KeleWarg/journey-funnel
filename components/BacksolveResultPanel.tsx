@@ -48,8 +48,8 @@ const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
                   <p className="text-sm text-gray-600">
                     Overall Observed CR: <span className="font-mono font-semibold text-blue-700">
                       {(backsolveResult.bestParams.overall_observed_CR * 100).toFixed(4)}%
-                    </span>
-                  </p>
+                  </span>
+                </p>
                 </div>
               )}
               

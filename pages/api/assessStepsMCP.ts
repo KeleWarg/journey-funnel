@@ -78,11 +78,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Parse MCP response (could be direct JSON or wrapped in MCP protocol format)
     let mcpResponse: any;
-    if (mcpRawResponse && mcpRawResponse.type === 'text' && mcpRawResponse.text) {
+    console.log('Raw MCP Response type:', typeof mcpRawResponse);
+    console.log('Raw MCP Response:', mcpRawResponse);
+    
+    if (mcpRawResponse && Array.isArray(mcpRawResponse) && mcpRawResponse.length > 0) {
+      // MCP returns array of TextContent - take first item
+      const firstResponse = mcpRawResponse[0];
+      if (firstResponse.type === 'text' && firstResponse.text) {
+        try {
+          mcpResponse = JSON.parse(firstResponse.text);
+        } catch (parseError) {
+          console.error('Failed to parse MCP response text:', firstResponse.text.substring(0, 500) + '...');
+          throw new Error('MCP response contains invalid JSON');
+        }
+      } else {
+        console.error('Invalid first MCP response format:', firstResponse);
+        throw new Error('MCP returned unexpected first response format');
+      }
+    } else if (mcpRawResponse && mcpRawResponse.type === 'text' && mcpRawResponse.text) {
       try {
         mcpResponse = JSON.parse(mcpRawResponse.text);
       } catch (parseError) {
-        console.error('Failed to parse MCP response text:', mcpRawResponse.text);
+        console.error('Failed to parse MCP response text:', mcpRawResponse.text.substring(0, 500) + '...');
         throw new Error('MCP response contains invalid JSON');
       }
     } else if (mcpRawResponse && typeof mcpRawResponse === 'object') {

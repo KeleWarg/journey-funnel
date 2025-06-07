@@ -58,7 +58,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           const cacheKey = `${stepIndex}-${questionIndex}`;
           placeholderMessages[cacheKey] = 'LLM recommendations require OpenAI API configuration';
         });
-      }
+          }
     });
 
     setLlmCache(placeholderMessages);
@@ -87,32 +87,32 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+    <div className="overflow-x-auto">
                 <table className="w-full border-collapse border-2 border-gray-800">
-          
-                    {/* Table Header */}
+        
+        {/* Table Header */}
           <thead className="bg-blue-50">
-            <tr>
+          <tr>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                Step
-              </th>
+              Step
+            </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                Optimal Position
-              </th>
+              Optimal Position
+            </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                LLM Recommendations
-              </th>
+              LLM Recommendations
+            </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                Observed CR
-              </th>
+              Observed CR
+            </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                Predicted CR
-              </th>
+              Predicted CR
+            </th>
               <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
                 LLM Improvement
               </th>
-            </tr>
-          </thead>
+          </tr>
+        </thead>
 
         {/* Table Body */}
         <tbody>
@@ -145,7 +145,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                           {recommendation ? (
                             recommendation === 'Loading...' ? (
                               <div className="flex items-center gap-2 text-blue-600">
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                              <Loader2 className="h-3 w-3 animate-spin" />
                                 <span>Loading recommendations...</span>
                               </div>
                             ) : recommendation === 'Recommendations unavailable' ? (
@@ -198,7 +198,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           ))}
         </tbody>
 
-        </table>
+      </table>
       </div>
 
       {/* Optimization Results Section */}

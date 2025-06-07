@@ -23,9 +23,40 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       k_override,
       gamma_exit_override,
       epsilon_override,
+      llm_assessments, // Add LLM assessments for uplift application
+      apply_llm_uplift = true, // Default to true to apply uplifts
     } = req.body;
 
     const N = steps.length; // total number of pages
+
+    // Apply LLM uplifts to steps before calculation if available
+    function applyLLMUplifts(stepsToModify: any[], assessments: any[]) {
+      if (!apply_llm_uplift || !assessments || assessments.length === 0) {
+        return stepsToModify;
+      }
+
+      return stepsToModify.map((step, stepIndex) => {
+        const assessment = assessments.find(a => a.stepIndex === stepIndex);
+        if (!assessment || typeof assessment.estimated_uplift !== 'number') {
+          return step;
+        }
+
+        // Apply uplift to observedCR: CR_s = clamp(CR_s + uplift, 0, 1)
+        const originalCR = step.observedCR;
+        const upliftedCR = Math.min(1.0, Math.max(0.0, originalCR + assessment.estimated_uplift));
+        
+        console.log(`Step ${stepIndex}: CR ${(originalCR*100).toFixed(1)}% → ${(upliftedCR*100).toFixed(1)}% (+${(assessment.estimated_uplift*100).toFixed(1)}pp)`);
+
+        return {
+          ...step,
+          observedCR: upliftedCR,
+          llm_uplift_applied: assessment.estimated_uplift
+        };
+      });
+    }
+
+    // Apply LLM uplifts to steps
+    const enhancedSteps = applyLLMUplifts(steps, llm_assessments);
 
     // 1) Compute source multiplier S from source key (per YAML spec)
     const sourceMultipliers = {
@@ -77,7 +108,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     let cumulativeConversion = 1;
 
     for (let s = 1; s <= N; s++) {
-      const step = steps[s - 1];
+      const step = enhancedSteps[s - 1];
       const questions = step.questions;
       const boostsSoFar = step.boosts;
 

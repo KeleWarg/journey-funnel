@@ -209,9 +209,6 @@ export default function EnhancedComparisonTable({
                   Samples {getSortIcon('samples_evaluated')}
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -251,29 +248,12 @@ export default function EnhancedComparisonTable({
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {variant.samples_evaluated.toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                      <button
-                        onClick={() => toggleRowExpansion(variant.framework)}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {isExpanded ? 'Hide' : 'Details'}
-                      </button>
-                      {onApplyVariant && variant.uplift_pp > 0 && (
-                        <Button
-                          onClick={() => onApplyVariant(variant)}
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          Apply
-                        </Button>
-                      )}
-                    </td>
                   </tr>
                   
                   {/* Expanded Details */}
                   {isExpanded && (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 bg-gray-50">
+                      <td colSpan={6} className="px-6 py-4 bg-gray-50">
                         <div className="space-y-4">
                           <div>
                             <h4 className="text-sm font-medium text-gray-900 mb-2">Copy Suggestions:</h4>

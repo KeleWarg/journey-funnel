@@ -44,13 +44,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Helper: Shuffle array for random sampling
     function shuffleArray(arr: any[]) {
-      const a = arr.slice();
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    }
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
     // NEW: Apply LLM uplifts to steps before simulation per action plan
     function applyLLMUplifts(stepsToModify: any[], assessments: any[]) {
@@ -93,13 +93,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Source multiplier per YAML
       const sourceMultipliers = {
-        paid_search: 1.3,
-        paid_social: 1.1,
-        organic_search: 1.0,
-        direct_referral: 1.0,
-        display_email: 0.9,
-        social_organic: 0.7,
-      };
+    paid_search: 1.3,
+    paid_social: 1.1,
+    organic_search: 1.0,
+    direct_referral: 1.0,
+    display_email: 0.9,
+    social_organic: 0.7,
+  };
       const S = sourceMultipliers[source as keyof typeof sourceMultipliers] || 1.0;
       
       // Entry motivation per YAML
@@ -133,18 +133,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       else if (enhancedSteps.length <= 12) gammaBoost = 0.25; // medium
       else gammaBoost = 0.30;                              // long
 
-      let cumulativeCR = 1;
+  let cumulativeCR = 1;
       let burdenStreak = 0;
 
       enhancedSteps.forEach((step: any, idx: number) => {
-        const s = idx + 1;
+    const s = idx + 1;
         
         // Compute SC_s using YAML Qs scale (1-5)
-        let sum_SC = 0;
+    let sum_SC = 0;
         step.questions.forEach((q: any) => {
           // Map input_type to Qs per YAML interaction scale
           let Q_s;
-          switch (q.input_type) {
+      switch (q.input_type) {
             case '1': Q_s = 1; break;  // Toggle/Yes-No
             case '2': Q_s = 2; break;  // Single dropdown
             case '3': Q_s = 3; break;  // Multi-select/slider
@@ -153,13 +153,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             default: Q_s = 2;          // fallback to dropdown
           }
           
-          const I_s = q.invasiveness;
-          const D_s = q.difficulty;
+      const I_s = q.invasiveness;
+      const D_s = q.difficulty;
           // YAML equation: SC_s = (c1*Qs + c2*Is + c3*Ds) / (c1 + c2 + c3)
-          const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
-          const denominator = c1 + c2 + c3;
-          sum_SC += numerator / denominator;
-        });
+      const numerator = c1 * Q_s + c2 * I_s + c3 * D_s;
+      const denominator = c1 + c2 + c3;
+      sum_SC += numerator / denominator;
+    });
         
         // Strategy 2: Add epsilon penalty for multiple questions
         const epsilon_per_extra_question = 0.05;
@@ -184,7 +184,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const F_s = Math.min(5, Math.max(1, 1 + alpha * progress + beta * burdenStreak - gammaBoost * step.boosts));
         
         // Page score per YAML: PS_s = (w_c·SC_s + w_f·F_s) / (w_c + w_f)
-        const PS_s = (w_c * SC_s + w_f * F_s) / (w_c + w_f);
+    const PS_s = (w_c * SC_s + w_f * F_s) / (w_c + w_f);
         
         // **CRITICAL FIX**: Motivation decay per YAML: M_s = max(0, M_{s−1} − k·PS_s)
         const M_s = Math.max(0, M_prev - k * PS_s);
@@ -193,17 +193,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const delta_s = PS_s - M_s;
         
         // Exit probability per YAML: p_exit_s = 1 / (1 + exp(−γ_exit·Δ_s))
-        const p_exit_s = 1 / (1 + Math.exp(-gammaExit * delta_s));
+    const p_exit_s = 1 / (1 + Math.exp(-gammaExit * delta_s));
         
         // Per-step conversion per YAML: CR_s = 1 − p_exit_s
-        const CR_s = 1 - p_exit_s;
+    const CR_s = 1 - p_exit_s;
         
-        cumulativeCR *= CR_s;
+    cumulativeCR *= CR_s;
         M_prev = M_s; // Update for next iteration
-      });
+  });
 
-      return cumulativeCR;
-    }
+  return cumulativeCR;
+}
 
     // NEW: Smart algorithm selection per action plan
     const useExhaustiveSearch = N <= 7;
@@ -347,4 +347,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("Optimization error:", err);
     res.status(500).json({ error: "Optimization failed", details: err.message });
   }
-}
+} 

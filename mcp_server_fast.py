@@ -85,6 +85,11 @@ FRAMEWORKS TO ANALYZE: {frameworks_text}
 
 For each step and framework combination, provide ONE specific, actionable suggestion. Focus on practical changes.
 
+SPECIAL INSTRUCTIONS FOR FOGG FRAMEWORK:
+- Include motivation_score (1-5): How motivated users are at this step
+- Include trigger_score (1-5): How clear/effective the trigger/call-to-action is
+- These scores will be used in Fogg Behavior Model calculations: motivation × ability × trigger
+
 Respond with valid JSON in this exact format:
 {{
   "assessments": [
@@ -92,8 +97,8 @@ Respond with valid JSON in this exact format:
       "stepIndex": 0,
       "frameworks": {{
         "PAS": {{"suggestion": "specific suggestion", "reasoning": "why it works", "confidence": 0.8, "estimated_uplift_pp": 2.5}},
-        "Fogg": {{"suggestion": "specific suggestion", "reasoning": "why it works", "confidence": 0.7, "estimated_uplift_pp": 1.8}},
-        ... (all frameworks)
+        "Fogg": {{"suggestion": "specific suggestion", "reasoning": "why it works", "confidence": 0.7, "estimated_uplift_pp": 1.8, "motivation_score": 4.0, "trigger_score": 3.5}},
+        ... (all frameworks - only Fogg needs motivation_score and trigger_score)
       }}
     }},
     ... (all steps)
@@ -160,12 +165,19 @@ def create_mock_analysis(steps: List[Dict], frameworks: List[str]) -> Dict:
     for i, step in enumerate(steps):
         framework_suggestions = {}
         for framework in frameworks:
-            framework_suggestions[framework] = {
+            base_suggestion = {
                 "suggestion": f"[Fast] {framework} optimization for step {i+1}: Focus on {FRAMEWORK_FOCUSES[framework]}",
                 "reasoning": f"Based on {framework} principles: {FRAMEWORK_FOCUSES[framework]}",
                 "confidence": 0.8,
                 "estimated_uplift_pp": 2.0
             }
+            
+            # Add Fogg-specific scores
+            if framework == "Fogg":
+                base_suggestion["motivation_score"] = 3.5  # Default motivation
+                base_suggestion["trigger_score"] = 3.0    # Default trigger
+            
+            framework_suggestions[framework] = base_suggestion
         
         assessments.append({
             "stepIndex": i,
@@ -298,7 +310,7 @@ async def handle_assess_steps_fast(arguments: Dict[str, Any]) -> List[types.Text
     return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
 async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.TextContent]:
-    """Fast funnel orchestrator"""
+    """Fast funnel orchestrator with Fogg Behavior Model logic"""
     
     steps = arguments.get("steps", [])
     frameworks = arguments.get("frameworks", [])
@@ -334,7 +346,7 @@ async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.Text
     analysis = await generate_fast_analysis(assessment_steps, frameworks)
     assessments = analysis["assessments"]
     
-    # Generate variants
+    # Generate variants for all frameworks
     variants = []
     for framework in frameworks:
         total_uplift = sum(
@@ -363,6 +375,91 @@ async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.Text
             "confidence": sum(s.get("confidence", 0) for s in suggestions) / len(suggestions) if suggestions else 0.7
         })
     
+    # **NEW: Fogg Behavior Model Logic**
+    if "Fogg" in frameworks:
+        fogg_steps_with_scores = []
+        
+        for i, step in enumerate(steps):
+            # Get Fogg assessment data
+            fogg_assessment = None
+            for assessment in assessments:
+                if assessment["stepIndex"] == i:
+                    fogg_data = assessment["frameworks"].get("Fogg", {})
+                    fogg_assessment = fogg_data
+                    break
+            
+            if not fogg_assessment:
+                # Fallback values if no assessment found
+                motivation_score = 3.0
+                trigger_score = 3.0
+            else:
+                # Extract motivation and trigger from assessment
+                motivation_score = fogg_assessment.get("motivation_score", 3.0)
+                trigger_score = fogg_assessment.get("trigger_score", 3.0)
+            
+            # Calculate ability based on step complexity (step complexity = SC_s)
+            # For now, estimate complexity from number of questions and invasiveness
+            questions = step.get("questions", [])
+            complexity = len(questions) * 1.5  # Base complexity
+            
+            for q in questions:
+                if isinstance(q, dict):
+                    invasiveness = q.get("invasiveness", 3)
+                    difficulty = q.get("difficulty", 3)
+                    complexity += (invasiveness + difficulty) / 2
+            
+            # Clamp complexity to reasonable range and compute ability
+            complexity = min(complexity, 5.0)
+            ability = max(1, min(5, 6 - complexity))
+            
+            # Compute Fogg score = motivation × ability × trigger
+            fogg_score = motivation_score * ability * trigger_score
+            
+            fogg_steps_with_scores.append({
+                "stepIndex": i,
+                "motivation": motivation_score,
+                "ability": ability,
+                "trigger": trigger_score,
+                "fogg_score": fogg_score,
+                "complexity": complexity
+            })
+        
+        # Sort by Fogg score descending to get recommended order
+        fogg_sorted = sorted(fogg_steps_with_scores, key=lambda x: x["fogg_score"], reverse=True)
+        fogg_recommended_order = [step["stepIndex"] for step in fogg_sorted]
+        
+        # Simulate the Fogg-optimized order
+        # For simplicity, apply a modest uplift based on order optimization
+        fogg_order_uplift = 0.0
+        if len(steps) > 1:
+            # Higher Fogg scores at the beginning should improve overall conversion
+            total_fogg_score = sum(step["fogg_score"] for step in fogg_steps_with_scores)
+            avg_fogg_score = total_fogg_score / len(fogg_steps_with_scores)
+            
+            # Estimate uplift based on how well-ordered the steps are by Fogg score
+            first_half_scores = [fogg_sorted[i]["fogg_score"] for i in range(len(fogg_sorted)//2 + 1)]
+            second_half_scores = [fogg_sorted[i]["fogg_score"] for i in range(len(fogg_sorted)//2 + 1, len(fogg_sorted))]
+            
+            if first_half_scores and second_half_scores:
+                score_improvement = (sum(first_half_scores)/len(first_half_scores)) - (sum(second_half_scores)/len(second_half_scores))
+                fogg_order_uplift = max(0, score_improvement * 0.5)  # Conservative uplift estimate
+        
+        fogg_variant_cr = baseline_cr * (1 + fogg_order_uplift / 100)
+        
+        # Add Fogg-BM variant
+        fogg_variant = {
+            "framework": "Fogg-BM",
+            "step_order": fogg_recommended_order,
+            "CR_total": fogg_variant_cr,
+            "uplift_pp": fogg_order_uplift,
+            "suggestions": [],  # No copy rewrites for ordering variant
+            "fogg_metrics": fogg_steps_with_scores,
+            "confidence": 0.8
+        }
+        
+        variants.append(fogg_variant)
+        logger.info(f"🧠 Fogg-BM variant created: {fogg_order_uplift:.1f}pp uplift, order: {fogg_recommended_order}")
+    
     variants.sort(key=lambda x: x["uplift_pp"], reverse=True)
     
     result = {
@@ -373,7 +470,8 @@ async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.Text
         "meta": {
             "steps_analyzed": len(steps),
             "frameworks_used": len(frameworks),
-            "api_calls_made": 1 if openai_client else 0
+            "api_calls_made": 1 if openai_client else 0,
+            "fogg_model_applied": "Fogg" in frameworks
         }
     }
     

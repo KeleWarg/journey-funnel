@@ -137,9 +137,6 @@ const MCPComparisonTable: React.FC<MCPComparisonTableProps> = ({
                 <th className="text-center py-3 px-4 font-semibold">
                   Suggestions
                 </th>
-                <th className="text-center py-3 px-4 font-semibold">
-                  Action
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -172,16 +169,6 @@ const MCPComparisonTable: React.FC<MCPComparisonTableProps> = ({
                       <span className="px-2 py-1 border border-gray-300 text-gray-600 text-xs rounded">
                         {variant.suggestions.length} improvements
                       </span>
-                    </td>
-                    <td className="text-center py-3 px-4">
-                      <Button
-                        size="sm"
-                        variant={isTopPerformer ? "default" : "outline"}
-                        onClick={() => onApplyVariant(variant)}
-                        className="text-xs"
-                      >
-                        Apply
-                      </Button>
                     </td>
                   </tr>
                 );

@@ -16,6 +16,7 @@ import MCPComparisonTable from '@components/MCPComparisonTable';
 import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
 import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
+import FoggModelAnalysis from '@components/FoggModelAnalysis';
 import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation } from '../types';
 
 // Default values and constants - Updated to match YAML specification
@@ -335,9 +336,11 @@ const JourneyCalculator: React.FC = () => {
       U0,
       k_override: overrides.k,
       gamma_exit_override: overrides.gamma_exit,
-      epsilon_override: overrides.epsilon
+      epsilon_override: overrides.epsilon,
+      llm_assessments: llmAssessmentResult?.assessments || null,
+      apply_llm_uplift: true
     };
-  }, [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, overrides]);
+  }, [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, overrides, llmAssessmentResult]);
 
   // API call functions
   const runSimulation = useCallback(async () => {
@@ -1011,7 +1014,14 @@ const JourneyCalculator: React.FC = () => {
         {simulationData && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Framework Analysis & Suggestions</h2>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Framework Analysis & Suggestions</h2>
+                {llmAssessmentResult && (
+                  <p className="text-sm text-green-600 mt-1">
+                    ✅ LLM uplift estimates are automatically applied to all simulations
+                  </p>
+                )}
+              </div>
               <Button
                 onClick={runLLMAssessment}
                 disabled={isAssessing || !steps || steps.length === 0}
@@ -1033,7 +1043,12 @@ const JourneyCalculator: React.FC = () => {
         {/* MCP Framework Comparison Table */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">MCP Framework Analysis</h2>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">MCP Framework Analysis</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Compare framework-specific suggestions and optimized order recommendations
+              </p>
+            </div>
             <div className="space-x-2">
               <Button
                 onClick={runMCPFunnelAnalysis}
@@ -1067,6 +1082,36 @@ const JourneyCalculator: React.FC = () => {
             isLoading={isEnhancedMCPAnalyzing}
             onApplyVariant={applyEnhancedVariant}
           />
+        )}
+
+        {/* Fogg Behavior Model Analysis */}
+        {simulationData && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-gray-900">🧠 Fogg Behavior Model Analysis</h2>
+            <FoggModelAnalysis
+              foggVariant={
+                mcpFunnelResult?.variants?.find(v => v.framework === 'Fogg-BM') ||
+                enhancedMcpResult?.variant_results?.find((v: any) => v.framework === 'Fogg-BM') ||
+                null
+              }
+              isLoading={isMCPAnalyzing || isEnhancedMCPAnalyzing}
+              onApplyOrder={(order) => {
+                // Apply the Fogg-recommended order
+                const reorderedSteps = order.map(index => steps[index]);
+                setSteps(reorderedSteps);
+                
+                // Show success message
+                toast({
+                  title: "Fogg-BM Order Applied!",
+                  description: `Steps reordered based on Fogg Behavior Model: ${order.map(i => `Step ${i + 1}`).join(' → ')}`,
+                });
+                
+                // Re-run simulation with new order
+                updateSimulation();
+              }}
+              steps={steps}
+            />
+          </div>
         )}
 
         {/* Ceiling Analysis Panel */}
