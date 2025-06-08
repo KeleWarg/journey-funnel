@@ -130,6 +130,63 @@ function mockManusFunnel(args: any) {
     };
   });
 
+  // Add Fogg-BM (Fogg Behavior Model) variant if Fogg framework is requested
+  if (frameworks.includes('Fogg')) {
+    const foggCrBoost = 0.035; // 3.5% boost for Fogg-BM
+    const foggCR_total = Math.min(0.95, baselineCR + foggCrBoost);
+    const foggUplift_pp = (foggCR_total - baselineCR) * 100;
+    
+    // Create behavioral model metrics for each step
+    const fogg_metrics = steps.map((step: any, stepIndex: number) => {
+      const motivationScore = Math.random() * 40 + 60; // 60-100 range
+      const abilityScore = Math.random() * 30 + 50; // 50-80 range  
+      const triggerScore = Math.random() * 25 + 40; // 40-65 range
+      
+      return {
+        stepIndex,
+        motivation: motivationScore,
+        ability: abilityScore,  
+        trigger: triggerScore,
+        behavioral_score: (motivationScore + abilityScore + triggerScore) / 3,
+        recommendations: [
+          `Increase motivation by emphasizing personal benefits`,
+          `Reduce cognitive load to improve ability`,
+          `Add clear trigger elements at optimal moments`
+        ],
+        barrier_analysis: {
+          primary_barrier: abilityScore < motivationScore ? 'ability' : 'motivation',
+          barrier_strength: Math.abs(motivationScore - abilityScore),
+          suggested_interventions: [
+            abilityScore < motivationScore ? 'Simplify interface' : 'Enhance value proposition'
+          ]
+        }
+      };
+    });
+
+    // Calculate optimal order based on Fogg principles
+    const foggOptimalOrder = [...Array(steps.length).keys()].sort((a, b) => {
+      const scoreA = fogg_metrics[a].behavioral_score;
+      const scoreB = fogg_metrics[b].behavioral_score;
+      return scoreB - scoreA; // Highest behavioral score first
+    });
+
+    const foggBMVariant = {
+      framework: 'Fogg-BM',
+      step_order: foggOptimalOrder,
+      CR_total: foggCR_total,
+      uplift_pp: foggUplift_pp,
+      suggestions: steps.map((step: any, stepIndex: number) => ({
+        framework: 'Fogg-BM',
+        revisedText: `Optimize for B=MAT: ${step.questions?.[0]?.title || 'Question'}`,
+        rationale: `Applied Fogg Behavior Model (B=MAT) for ${foggUplift_pp.toFixed(1)}pp improvement`,
+        estimated_uplift: foggCrBoost / steps.length
+      })),
+      fogg_metrics // Include the behavioral model data
+    };
+
+    variants.push(foggBMVariant);
+  }
+
   // Sort by performance
   variants.sort((a: any, b: any) => b.CR_total - a.CR_total);
 

@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       best_gamma_exit,
       include_sample_results = false,
       apply_llm_uplift = true,  // NEW: Apply LLM suggestions per action plan
-      llm_assessments = []      // NEW: LLM assessment results per step
+      llmAssessments = []      // NEW: LLM assessment results per step
     } = req.body;
 
     const N = steps.length;
@@ -72,16 +72,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         });
 
+        // **CRITICAL FIX**: Clamp ΔCRₛ to ±20pp per YAML spec before applying
+        const MAX_UPLIFT_PER_STEP = 20; // 20pp per YAML spec
+        const clampedUpliftPP = Math.min(MAX_UPLIFT_PER_STEP, Math.max(-MAX_UPLIFT_PER_STEP, bestUplift));
+        
         // Apply uplift to observedCR: CR_s = clamp(CR_s + uplift/100, 0, 1)
         const originalCR = step.observedCR;
-        const upliftedCR = Math.min(1.0, Math.max(0.0, originalCR + (bestUplift / 100)));
+        const upliftedCR = Math.min(1.0, Math.max(0.0, originalCR + (clampedUpliftPP / 100)));
         
-        console.log(`Step ${stepIndex}: CR ${(originalCR*100).toFixed(1)}% → ${(upliftedCR*100).toFixed(1)}% (+${bestUplift.toFixed(1)}pp)`);
+        console.log(`Step ${stepIndex}: CR ${(originalCR*100).toFixed(1)}% → ${(upliftedCR*100).toFixed(1)}% (+${clampedUpliftPP.toFixed(1)}pp, clamped from ${bestUplift.toFixed(1)}pp)`);
 
         return {
           ...step,
           observedCR: upliftedCR,
-          llm_uplift_applied: bestUplift
+          llm_uplift_applied: clampedUpliftPP
         };
       });
     }
@@ -89,7 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Simulation function with uplift support
     function simulateOrder(orderedSteps: any[]) {
       // Apply LLM uplifts before simulation per action plan
-      const enhancedSteps = applyLLMUplifts(orderedSteps, llm_assessments);
+      const enhancedSteps = applyLLMUplifts(orderedSteps, llmAssessments);
       
       // Source multiplier per YAML
       const sourceMultipliers = {
@@ -222,6 +226,104 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let optimalOrder = Array.from({ length: N }, (_, i) => i);
     let optimalCRTotal = simulateOrder(steps);
     
+    // **CRITICAL FIX**: Implement proper exhaustive search per YAML spec
+    if (useExhaustiveSearch) {
+      console.log(`🔍 Exhaustive search: Testing all ${factorial(N)} permutations...`);
+      let permutationCount = 0;
+      
+      for (const permutation of permutations(Array.from({ length: N }, (_, i) => i))) {
+        permutationCount++;
+        const reorderedSteps = permutation.map(i => steps[i]);
+        const crTotal = simulateOrder(reorderedSteps);
+        
+        if (crTotal > optimalCRTotal) {
+          optimalCRTotal = crTotal;
+          optimalOrder = [...permutation];
+          console.log(`🎯 New best order found: [${permutation.join(',')}] CR=${(crTotal*100).toFixed(2)}%`);
+        }
+        
+        // Progress logging every 100 permutations
+        if (permutationCount % 100 === 0) {
+          console.log(`📊 Processed ${permutationCount}/${factorial(N)} permutations`);
+        }
+      }
+      
+      console.log(`✅ Exhaustive search complete: Best order [${optimalOrder.join(',')}] with CR=${(optimalCRTotal*100).toFixed(2)}%`);
+    } else {
+      // **NEW**: Implement GA algorithm per YAML spec for N > 7
+      const GA_PARAMS = { population: 200, generations: 50 }; // Per YAML spec
+      console.log(`🧬 Genetic Algorithm: ${GA_PARAMS.population} population, ${GA_PARAMS.generations} generations`);
+      
+      // Initialize random population
+      let population: number[][] = [];
+      for (let i = 0; i < GA_PARAMS.population; i++) {
+        population.push(shuffleArray(Array.from({ length: N }, (_, i) => i)));
+      }
+      
+      // Evaluate initial population
+      let populationFitness = population.map(order => {
+        const reorderedSteps = order.map(i => steps[i]);
+        return { order: [...order], fitness: simulateOrder(reorderedSteps) };
+      });
+      
+      // Evolution loop
+      for (let generation = 0; generation < GA_PARAMS.generations; generation++) {
+        // Sort by fitness (descending)
+        populationFitness.sort((a, b) => b.fitness - a.fitness);
+        
+        // Update best if current generation has improved
+        if (populationFitness[0].fitness > optimalCRTotal) {
+          optimalCRTotal = populationFitness[0].fitness;
+          optimalOrder = [...populationFitness[0].order];
+          console.log(`🧬 GA Gen ${generation}: New best [${optimalOrder.join(',')}] CR=${(optimalCRTotal*100).toFixed(2)}%`);
+        }
+        
+        // Create next generation
+        const newPopulation: number[][] = [];
+        
+        // Keep top 10% (elitism)
+        const eliteCount = Math.floor(GA_PARAMS.population * 0.1);
+        for (let i = 0; i < eliteCount; i++) {
+          newPopulation.push([...populationFitness[i].order]);
+        }
+        
+        // Generate offspring for remaining 90%
+        while (newPopulation.length < GA_PARAMS.population) {
+          // Tournament selection (size 3)
+          const parent1 = tournamentSelection(populationFitness, 3);
+          const parent2 = tournamentSelection(populationFitness, 3);
+          
+          // Order crossover (OX)
+          const offspring = orderCrossover(parent1.order, parent2.order);
+          
+          // Mutation (swap two random positions) with 10% probability
+          if (Math.random() < 0.1) {
+            const mutated = [...offspring];
+            const pos1 = Math.floor(Math.random() * N);
+            const pos2 = Math.floor(Math.random() * N);
+            [mutated[pos1], mutated[pos2]] = [mutated[pos2], mutated[pos1]];
+            newPopulation.push(mutated);
+          } else {
+            newPopulation.push(offspring);
+          }
+        }
+        
+        // Evaluate new population
+        populationFitness = newPopulation.map(order => {
+          const reorderedSteps = order.map(i => steps[i]);
+          return { order: [...order], fitness: simulateOrder(reorderedSteps) };
+        });
+        
+        // Progress logging every 10 generations
+        if ((generation + 1) % 10 === 0) {
+          const avgFitness = populationFitness.reduce((sum, ind) => sum + ind.fitness, 0) / populationFitness.length;
+          console.log(`📊 GA Gen ${generation + 1}/${GA_PARAMS.generations}: Best=${(populationFitness[0].fitness*100).toFixed(2)}%, Avg=${(avgFitness*100).toFixed(2)}%`);
+        }
+      }
+      
+      console.log(`✅ GA optimization complete: Best order [${optimalOrder.join(',')}] with CR=${(optimalCRTotal*100).toFixed(2)}%`);
+    }
+
     // MODEL VALIDATION: Compare predicted vs observed CR for current order
     const currentObservedCR = steps.reduce((total: number, step: any) => total * step.observedCR, 1);
     
@@ -338,7 +440,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         potential_gain_pp: potentialGainPP,
         improvement_possible: potentialGainPP > 0.5 // Worth optimizing if >0.5pp gain
       },
-      llm_uplifts_applied: apply_llm_uplift && llm_assessments.length > 0,
+      llm_uplifts_applied: apply_llm_uplift && llmAssessments && llmAssessments.length > 0,
       ...(include_sample_results && { allSamples })
     };
 
@@ -347,4 +449,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("Optimization error:", err);
     res.status(500).json({ error: "Optimization failed", details: err.message });
   }
+}
+
+// GA Helper Functions
+function tournamentSelection(population: { order: number[], fitness: number }[], tournamentSize: number) {
+  let best = population[Math.floor(Math.random() * population.length)];
+  for (let i = 1; i < tournamentSize; i++) {
+    const candidate = population[Math.floor(Math.random() * population.length)];
+    if (candidate.fitness > best.fitness) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function orderCrossover(parent1: number[], parent2: number[]): number[] {
+  const size = parent1.length;
+  const start = Math.floor(Math.random() * size);
+  const end = Math.floor(Math.random() * size);
+  const [from, to] = start < end ? [start, end] : [end, start];
+  
+  const offspring: number[] = new Array(size).fill(-1);
+  
+  // Copy substring from parent1
+  for (let i = from; i <= to; i++) {
+    offspring[i] = parent1[i];
+  }
+  
+  // Fill remaining positions with parent2's order
+  let p2Index = 0;
+  for (let i = 0; i < size; i++) {
+    if (offspring[i] === -1) {
+      // Find next unused element from parent2
+      while (offspring.includes(parent2[p2Index])) {
+        p2Index++;
+      }
+      offspring[i] = parent2[p2Index];
+      p2Index++;
+    }
+  }
+  
+  return offspring;
 } 

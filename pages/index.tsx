@@ -17,6 +17,7 @@ import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
 import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
 import FoggModelAnalysis from '@components/FoggModelAnalysis';
+import AnalysisTabsSection from '@components/AnalysisTabsSection';
 import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation } from '../types';
 
 // Default values and constants - Updated to match YAML specification
@@ -337,7 +338,7 @@ const JourneyCalculator: React.FC = () => {
       k_override: overrides.k,
       gamma_exit_override: overrides.gamma_exit,
       epsilon_override: overrides.epsilon,
-      llm_assessments: llmAssessmentResult?.assessments || null,
+      llmAssessments: llmAssessmentResult?.assessments || null,
       apply_llm_uplift: true
     };
   }, [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, overrides, llmAssessmentResult]);
@@ -885,6 +886,78 @@ const JourneyCalculator: React.FC = () => {
     step && typeof step.observedCR === 'number' && step.observedCR !== null && step.observedCR !== undefined
   );
 
+  // Add specific Fogg analysis function
+  const runFoggAnalysis = useCallback(async () => {
+    try {
+      setIsMCPAnalyzing(true);
+      
+      if (!steps || steps.length === 0) {
+        throw new Error("Please configure funnel steps first");
+      }
+
+      // Call MCP manusFunnel orchestrator function with timeout (same as runMCPFunnelAnalysis)
+      let data;
+      try {
+        console.log('Running Fogg-specific MCP analysis...');
+        
+        // Create a timeout promise (45 seconds)
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Fogg analysis timeout')), 45000)
+        );
+        
+        const fetchPromise = fetch('/api/manusFunnel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            steps: steps,
+            frameworks: ['Fogg'] // Only run Fogg framework
+          })
+        });
+        
+        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          
+          // Special handling for MCP not available
+          if (errorData.error === 'MCP client not available') {
+            throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
+          }
+          
+          throw new Error(errorData.error || errorData.details || 'Fogg analysis failed');
+        }
+
+        data = await response.json();
+        console.log('Fogg analysis successful');
+        
+      } catch (mcpError) {
+        console.warn('Fogg analysis failed:', mcpError);
+        throw new Error(`Fogg analysis failed: ${mcpError instanceof Error ? mcpError.message : 'Unknown error'}`);
+      }
+      
+      setMcpFunnelResult(data);
+
+      // Find the Fogg-related variant (could be 'Fogg' or 'Fogg-BM')
+      const foggVariant = data.variants?.find((v: any) => v.framework === 'Fogg-BM' || v.framework === 'Fogg');
+      const upliftText = foggVariant ? `${foggVariant.uplift_pp.toFixed(1)}pp` : '0.0pp';
+
+      toast({
+        title: "Fogg Analysis Complete",
+        description: `Fogg Behavior Model analysis complete. ${upliftText} improvement identified.`
+      });
+
+    } catch (error) {
+      console.error('Fogg Analysis error:', error);
+      toast({
+        title: "Fogg Analysis Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsMCPAnalyzing(false);
+    }
+  }, [steps, toast]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -1010,156 +1083,53 @@ const JourneyCalculator: React.FC = () => {
           />
         )}
 
-        {/* Framework Suggestions Panel */}
+        {/* Unified Analysis Results Section */}
         {simulationData && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Framework Analysis & Suggestions</h2>
-                {llmAssessmentResult && (
-                  <p className="text-sm text-green-600 mt-1">
-                    ✅ LLM uplift estimates are automatically applied to all simulations
-                  </p>
-                )}
-              </div>
-              <Button
-                onClick={runLLMAssessment}
-                disabled={isAssessing || !steps || steps.length === 0}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isAssessing ? 'Analyzing...' : 'Analyze with MCP'}
-              </Button>
-            </div>
-            <FrameworkSuggestionsPanel
-              assessmentResult={llmAssessmentResult as MCPAssessmentResult}
-              isLoading={isAssessing}
-              baselineCR={simulationData.CR_total}
-              onApplyRecommendedOrder={applyRecommendedOrder}
-              currentStepOrder={getCurrentStepOrder()}
-            />
-          </div>
-        )}
-
-        {/* MCP Framework Comparison Table */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">MCP Framework Analysis</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Compare framework-specific suggestions and optimized order recommendations
-              </p>
-            </div>
-            <div className="space-x-2">
-              <Button
-                onClick={runMCPFunnelAnalysis}
-                disabled={isMCPAnalyzing || !steps || steps.length === 0}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {isMCPAnalyzing ? 'Analyzing...' : 'Standard MCP'}
-              </Button>
-              <Button
-                onClick={runEnhancedMCPAnalysis}
-                disabled={isEnhancedMCPAnalyzing || !steps || steps.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-700"
-              >
-                {isEnhancedMCPAnalyzing ? 'Processing...' : 'Enhanced MCP'}
-              </Button>
-            </div>
-          </div>
-          
-          <MCPComparisonTable
-            mcpResult={mcpFunnelResult}
-            onApplyVariant={applyMCPVariant}
-            isLoading={isMCPAnalyzing}
-          />
-        </div>
-
-        {/* Enhanced Framework Variant Analysis */}
-        {enhancedMcpResult && (
-          <EnhancedComparisonTable
-            variantResults={enhancedMcpResult.variant_results}
-            ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
-            isLoading={isEnhancedMCPAnalyzing}
-            onApplyVariant={applyEnhancedVariant}
-          />
-        )}
-
-        {/* Fogg Behavior Model Analysis */}
-        {simulationData && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">🧠 Fogg Behavior Model Analysis</h2>
-            <FoggModelAnalysis
-              foggVariant={
-                mcpFunnelResult?.variants?.find(v => v.framework === 'Fogg-BM') ||
-                enhancedMcpResult?.variant_results?.find((v: any) => v.framework === 'Fogg-BM') ||
-                null
-              }
-              isLoading={isMCPAnalyzing || isEnhancedMCPAnalyzing}
-              onApplyOrder={(order) => {
-                // Apply the Fogg-recommended order
-                const reorderedSteps = order.map(index => steps[index]);
-                setSteps(reorderedSteps);
-                
-                // Show success message
-                toast({
-                  title: "Fogg-BM Order Applied!",
-                  description: `Steps reordered based on Fogg Behavior Model: ${order.map(i => `Step ${i + 1}`).join(' → ')}`,
-                });
-                
-                // Re-run simulation with new order
-                updateSimulation();
-              }}
-              steps={steps}
-            />
-          </div>
-        )}
-
-        {/* Ceiling Analysis Panel */}
-        {optimizeResult && (
-          <CeilingAnalysisPanel
-            ceilingAnalysis={optimizeResult.ceiling_analysis}
-            algorithmUsed={optimizeResult.algorithm}
-            isLoading={isOptimizing}
-          />
-        )}
-
-        {/* Data Visualization Section */}
-        {simulationData && optimizeResult?.allSamples && (
-          <DataVisualization
+          <AnalysisTabsSection
+            mcpFunnelResult={mcpFunnelResult}
+            enhancedMcpResult={enhancedMcpResult}
+            isEnhancedMCPAnalyzing={isEnhancedMCPAnalyzing}
+            isMCPAnalyzing={isMCPAnalyzing}
+            onApplyRecommendedOrder={applyMCPVariant}
+            onRunEnhancedMCP={runEnhancedMCPAnalysis}
+            onApplyEnhancedVariant={applyEnhancedVariant}
             steps={steps}
-            simulationData={simulationData}
-            optimizeResult={{
-              optimal_step_order: optimizeResult.optimalOrder,
-              optimal_CR_total: optimizeResult.optimalCRTotal,
-              sample_results: optimizeResult.allSamples?.map(s => ({
-                order: s.order,
-                CR_total: s.crTotal
-              }))
+            onRunFoggAnalysis={simulationData ? runFoggAnalysis : undefined}
+            onApplyFoggOrder={(order) => {
+              // Apply the Fogg-recommended order
+              const reorderedSteps = order.map(index => steps[index]);
+              setSteps(reorderedSteps);
+              
+              // Show success message
+              toast({
+                title: "Fogg-BM Order Applied!",
+                description: `Steps reordered based on Fogg Behavior Model: ${order.map(i => `Step ${i + 1}`).join(' → ')}`,
+              });
+              
+              // Re-run simulation with new order
+              updateSimulation();
             }}
-            E={E}
-            N_importance={N}
-            source={source}
-            c1={c1}
-            c2={c2}
-            c3={c3}
-            w_c={w_c}
-            w_f={w_f}
-            w_E={w_E}
-            w_N={w_N}
-            use_backsolved_constants={backsolveResult ? true : false}
-            best_k={backsolveResult?.bestParams?.best_k}
-            best_gamma_exit={backsolveResult?.bestParams?.best_gamma_exit}
+            llmAssessmentResult={llmAssessmentResult}
+            isAssessing={isAssessing}
+            onRunAssessment={runLLMAssessment}
+            baselineCR={simulationData?.CR_total || 0}
           />
         )}
 
         {/* Export & Share Controls */}
         <ExportShareControls
-          buildPayload={buildPayload}
           simulationData={simulationData}
           backsolveResult={backsolveResult}
           optimalPositions={optimalPositions}
-          llmCache={llmCache}
         />
+
+        {/* Data Visualization */}
+        {simulationData && (
+          <DataVisualization
+            data={simulationData}
+            optimizeData={optimizeResult}
+          />
+        )}
 
       </main>
 

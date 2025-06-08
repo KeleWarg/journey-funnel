@@ -26,13 +26,15 @@ interface FoggModelAnalysisProps {
   isLoading: boolean;
   onApplyOrder?: (order: number[]) => void;
   steps: Array<{ questions: any[] }>;
+  onRunFoggAnalysis?: () => void;
 }
 
 const FoggModelAnalysis: React.FC<FoggModelAnalysisProps> = ({
   foggVariant,
   isLoading,
   onApplyOrder,
-  steps
+  steps,
+  onRunFoggAnalysis
 }) => {
   const [activeTab, setActiveTab] = useState<'metrics' | 'order'>('metrics');
 
@@ -71,7 +73,7 @@ const FoggModelAnalysis: React.FC<FoggModelAnalysisProps> = ({
             <p className="text-gray-500 mb-4">
               Get personalized insights using the Fogg Behavior Model (B = MAT)
             </p>
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4 text-left">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6 text-left">
               <h4 className="text-sm font-semibold text-indigo-800 mb-2">What you'll get:</h4>
               <ul className="text-sm text-indigo-700 space-y-1">
                 <li>• <strong>Motivation scores</strong> for each step</li>
@@ -80,8 +82,19 @@ const FoggModelAnalysis: React.FC<FoggModelAnalysisProps> = ({
                 <li>• <strong>Recommended step order</strong> to maximize conversions</li>
               </ul>
             </div>
-            <p className="text-sm text-gray-600 mb-3">
-              Click <strong>"Standard MCP"</strong> or <strong>"Enhanced MCP"</strong> above to generate Fogg analysis
+            <Button
+              onClick={onRunFoggAnalysis}
+              disabled={!onRunFoggAnalysis}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <BrainIcon className="h-5 w-5" />
+              Run Fogg Analysis
+            </Button>
+            <p className="text-sm text-gray-500 mt-4">
+              {onRunFoggAnalysis 
+                ? "Click to analyze your funnel with the Fogg Behavior Model (B = MAT)"
+                : "Please run a simulation first to enable Fogg analysis"
+              }
             </p>
           </div>
         </CardContent>
@@ -106,19 +119,19 @@ const FoggModelAnalysis: React.FC<FoggModelAnalysisProps> = ({
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
-                {foggVariant.fogg_metrics.reduce((sum, m) => sum + m.motivation, 0) / foggVariant.fogg_metrics.length}
+                {(foggVariant.fogg_metrics.reduce((sum, m) => sum + m.motivation, 0) / foggVariant.fogg_metrics.length).toFixed(1)}
               </div>
               <div className="text-sm text-gray-600">Avg Motivation</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {foggVariant.fogg_metrics.reduce((sum, m) => sum + m.ability, 0) / foggVariant.fogg_metrics.length}
+                {(foggVariant.fogg_metrics.reduce((sum, m) => sum + m.ability, 0) / foggVariant.fogg_metrics.length).toFixed(1)}
               </div>
               <div className="text-sm text-gray-600">Avg Ability</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {foggVariant.fogg_metrics.reduce((sum, m) => sum + m.trigger, 0) / foggVariant.fogg_metrics.length}
+                {(foggVariant.fogg_metrics.reduce((sum, m) => sum + m.trigger, 0) / foggVariant.fogg_metrics.length).toFixed(1)}
               </div>
               <div className="text-sm text-gray-600">Avg Trigger</div>
             </div>

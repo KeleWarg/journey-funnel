@@ -28,27 +28,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       mcpClient = await initializeMCPOnServer();
       
-      const mcpRawResponse = await mcpClient.callTool({
-        name: 'manusFunnel',
-        arguments: {
-          steps: steps.map((step: any, index: number) => ({
-            stepIndex: index,
-            questions: step.questions.map((q: any) => q.text || q.question || 'Unnamed question'),
-            observedCR: step.observedCR,
-            boosts: step.boosts || 0
-          })),
-          frameworks,
-          baseline_CR: baselineCR
-        }
+      const mcpRawResponse = await mcpClient.callFunction('manusFunnel', {
+        steps: steps.map((step: any, index: number) => ({
+          stepIndex: index,
+          questions: step.questions.map((q: any) => q.text || q.question || 'Unnamed question'),
+          observedCR: step.observedCR,
+          boosts: step.boosts || 0
+        })),
+        frameworks,
+        baseline_CR: baselineCR
       });
 
       // Parse MCP response properly
       let mcpResult: any;
-      if (mcpRawResponse?.content?.[0]?.text) {
+      if (mcpRawResponse?.text) {
         try {
-          mcpResult = JSON.parse(mcpRawResponse.content[0].text);
+          mcpResult = JSON.parse(mcpRawResponse.text);
         } catch (parseError) {
-          console.error('Failed to parse MCP response text:', mcpRawResponse.content[0].text);
+          console.error('Failed to parse MCP response text:', mcpRawResponse.text);
           mcpResult = {};
         }
       } else if (mcpRawResponse && typeof mcpRawResponse === 'object') {
@@ -57,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.warn('Unexpected MCP response format, using empty result');
         mcpResult = {};
       }
-      llmAssessments = mcpResult.step_assessments || [];
+      llmAssessments = mcpResult.variants || [];
       
       console.log(`✅ MCP Analysis completed: ${llmAssessments.length} step assessments received`);
     } catch (mcpError) {

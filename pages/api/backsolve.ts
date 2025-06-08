@@ -73,8 +73,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 4. Loop over every combination of (kTry, gammaTry) - grid search
     let searchCount = 0;
+    let earlyExit = false;
     
     for (let kTry of kValues) {
+      if (earlyExit) break; // Exit outer loop if early exit triggered
+      
       for (let gammaTry of gammaValues) {
         searchCount++;
 
@@ -181,6 +184,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             overall_predicted_CR_best,
             overall_observed_CR
           };
+          
+          // **CRITICAL FIX**: Early exit if MSE < 1e-6 per YAML spec
+          if (mse < 1e-6) {
+            console.log(`🎯 Early exit: MSE ${mse} < 1e-6 threshold at k=${kTry}, γ_exit=${gammaTry}`);
+            earlyExit = true;
+            break;
+          }
         }
       }
     }

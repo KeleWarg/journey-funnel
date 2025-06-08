@@ -3,6 +3,8 @@ import { NextApiRequest, NextApiResponse } from 'next';
 interface BoostElement {
   id: string;
   text: string;
+  category?: string;  // Optional - might already be classified
+  score?: number;     // Optional - might already have score
 }
 
 interface ClassifiedBoost {
@@ -44,35 +46,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    // Input validation with detailed logging
     console.log('Request body:', JSON.stringify(req.body, null, 2));
+    
     const { stepIndex, boostElements }: AssessBoostElementsRequest = req.body;
 
-    if (typeof stepIndex !== 'number') {
-      console.log('Invalid stepIndex:', stepIndex, typeof stepIndex);
-      res.status(400).json({ error: 'stepIndex must be a number' });
+    if (typeof stepIndex !== 'number' || stepIndex < 0) {
+      console.log('Invalid stepIndex:', stepIndex);
+      res.status(400).json({ error: 'stepIndex must be a non-negative number' });
       return;
     }
 
-    if (!boostElements || !Array.isArray(boostElements)) {
+    if (!boostElements || !Array.isArray(boostElements) || boostElements.length === 0) {
       console.log('Invalid boostElements:', boostElements);
-      res.status(400).json({ error: 'boostElements array is required' });
+      res.status(400).json({ error: 'boostElements must be a non-empty array' });
       return;
     }
 
-    if (boostElements.length === 0) {
-      console.log('Empty boostElements array');
-      res.status(400).json({ error: 'boostElements cannot be empty' });
-      return;
-    }
+    console.log(`🔍 Classifying ${boostElements.length} boost elements for step ${stepIndex}`);
 
     // Validate each boost element
     for (let i = 0; i < boostElements.length; i++) {
       const element = boostElements[i];
-      if (!element.id || !element.text) {
+      if (!element || typeof element !== 'object' || !element.id || !element.text) {
         console.log(`Invalid element at index ${i}:`, element);
         res.status(400).json({ error: `Boost element ${i + 1} is missing required fields (id or text)` });
         return;
       }
+    }
+
+    // Check if elements are already classified
+    const alreadyClassified = boostElements.every(el => el.category && typeof el.score === 'number');
+    
+    if (alreadyClassified) {
+      console.log('✅ Elements already classified, returning existing data');
+      const totalScore = Math.min(5, boostElements.reduce((sum, el) => sum + (el.score || 0), 0));
+      
+      res.status(200).json({
+        classifiedElements: boostElements,
+        totalScore,
+        cappedScore: totalScore
+      });
+      return;
     }
 
     // Initialize MCP client for LLM classification
@@ -93,7 +108,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Parse MCP response
       let mcpResponse: any;
-      if (mcpRawResponse && mcpRawResponse.type === 'text' && mcpRawResponse.text) {
+      console.log('Raw MCP Response:', JSON.stringify(mcpRawResponse, null, 2));
+      
+      if (mcpRawResponse && mcpRawResponse.text) {
         try {
           mcpResponse = JSON.parse(mcpRawResponse.text);
         } catch (parseError) {

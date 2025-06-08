@@ -141,7 +141,9 @@ const FrameworkSuggestionsPanel: React.FC<FrameworkSuggestionsPanelProps> = ({
                   <div className="flex items-center gap-3">
                                          <div className="text-right">
                        <div className="text-lg font-semibold text-green-600">
-                         +{((recommendation.expected_CR_total - baselineCR) * 100).toFixed(1)}pp
+                         +{(recommendation.expected_CR_total && !isNaN(recommendation.expected_CR_total) 
+                           ? ((recommendation.expected_CR_total - baselineCR) * 100).toFixed(1)
+                           : '0.0')}pp
                        </div>
                        <div className="text-xs text-gray-500">Expected gain</div>
                      </div>

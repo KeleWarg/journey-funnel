@@ -23,7 +23,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       k_override,
       gamma_exit_override,
       epsilon_override,
-      llm_assessments, // Add LLM assessments for uplift application
+      llmAssessments, // **FIXED**: Consistent parameter name
       apply_llm_uplift = true, // Default to true to apply uplifts
     } = req.body;
 
@@ -56,7 +56,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Apply LLM uplifts to steps
-    const enhancedSteps = applyLLMUplifts(steps, llm_assessments);
+    const enhancedSteps = applyLLMUplifts(steps, llmAssessments);
 
     // 1) Compute source multiplier S from source key (per YAML spec)
     const sourceMultipliers = {

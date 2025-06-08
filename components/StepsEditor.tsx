@@ -74,18 +74,18 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">
-                    Boosts (0–3)
+                    Boosts (0–5)
                   </Label>
                   <Input
                     type="number"
                     min={0}
-                    max={3}
+                    max={5}
                     value={step.boosts}
                     onChange={(e) => onUpdateStep(stepIndex, { boosts: parseInt(e.target.value) || 0 })}
                     className="w-20 border-gray-300 focus:border-blue-500"
-                    title="Energy boost reduces fatigue temporarily"
+                    title="Energy boost reduces fatigue temporarily (max 5 per YAML spec)"
                   />
-                  <p className="text-xs text-gray-500">Energy boost reduces fatigue temporarily</p>
+                  <p className="text-xs text-gray-500">Energy boost reduces fatigue temporarily (max 5 per YAML spec)</p>
                 </div>
 
                 <div className="space-y-2">

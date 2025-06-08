@@ -86,13 +86,33 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
       async callFunction(functionName: string, args: any): Promise<any> {
         console.log(`🔄 MCP calling function: ${functionName}`);
         
-        const result = await client.callTool({
+        // Increased timeout to 120s to allow real MCP server to complete comprehensive analysis
+        const timeoutMs = 120000; // 120 seconds (2 minutes)
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`MCP call to ${functionName} timed out after ${timeoutMs}ms`)), timeoutMs)
+        );
+        
+        const callPromise = client.callTool({
           name: functionName,
           arguments: args,
         });
-
-        console.log(`✅ MCP function ${functionName} completed`);
-        return (result as any).content[0];
+        
+        try {
+          const result = await Promise.race([callPromise, timeoutPromise]) as any;
+          console.log(`✅ MCP function ${functionName} completed`);
+          
+          // Handle different response formats from MCP
+          if (result && result.content && Array.isArray(result.content) && result.content.length > 0) {
+            return result.content[0];
+          } else if (result && result.content) {
+            return result.content;
+          } else {
+            return result;
+          }
+        } catch (error: any) {
+          console.error(`❌ MCP function ${functionName} failed:`, error.message);
+          throw error;
+        }
       },
 
       isConnected(): boolean {
