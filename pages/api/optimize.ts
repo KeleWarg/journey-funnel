@@ -219,7 +219,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Step 1: Gather per-step attributes
       const stepAttributes = steps.map((step: any, stepIndex: number) => {
-        const assessment = llmAssessments.find(a => a.stepIndex === stepIndex);
+        const assessment = llmAssessments.find((a: { stepIndex: number }) => a.stepIndex === stepIndex);
         
         // Default values if assessment not found
         let motivation = 3.0;
@@ -268,15 +268,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       
       // Step 2: Normalize scores to [0, 1] range
-      const foggScores = stepAttributes.map(attr => attr.foggScore);
-      const elmScores = stepAttributes.map(attr => attr.elmScore);
+      const foggScores = stepAttributes.map((attr: { foggScore: number }) => attr.foggScore);
+      const elmScores = stepAttributes.map((attr: { elmScore: number }) => attr.elmScore);
       
       const minFogg = Math.min(...foggScores);
       const maxFogg = Math.max(...foggScores);
       const minElm = Math.min(...elmScores);
       const maxElm = Math.max(...elmScores);
       
-      const normalizedAttributes = stepAttributes.map(attr => {
+      const normalizedAttributes = stepAttributes.map((attr: { foggScore: number; elmScore: number; stepIndex: number }) => {
         const foggNormalized = maxFogg > minFogg ? (attr.foggScore - minFogg) / (maxFogg - minFogg) : 0.5;
         const elmNormalized = maxElm > minElm ? (attr.elmScore - minElm) / (maxElm - minElm) : 0.5;
         
@@ -292,11 +292,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       
       // Step 3: Sort by hybrid score (descending) to get seeded order
-      normalizedAttributes.sort((a, b) => b.hybridScore - a.hybridScore);
-      hybridSeededOrder = normalizedAttributes.map(attr => attr.stepIndex);
+      normalizedAttributes.sort((a: { hybridScore: number }, b: { hybridScore: number }) => b.hybridScore - a.hybridScore);
+      hybridSeededOrder = normalizedAttributes.map((attr: { stepIndex: number }) => attr.stepIndex);
       
-      console.log(`🎯 Hybrid seeded order: [${hybridSeededOrder.join(',')}]`);
-      console.log(`📊 Step scores:`, normalizedAttributes.map(attr => 
+      console.log(`🎯 Hybrid seeded order: [${hybridSeededOrder?.join(',') || ''}]`);
+      console.log(`📊 Step scores:`, normalizedAttributes.map((attr: { stepIndex: number; foggScore: number; elmScore: number; hybridScore: number }) => 
         `Step ${attr.stepIndex}: Fogg=${attr.foggScore.toFixed(1)}, ELM=${attr.elmScore.toFixed(1)}, Hybrid=${attr.hybridScore.toFixed(3)}`
       ));
     }
