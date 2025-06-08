@@ -69,13 +69,20 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-900">
-          Funnel-Level Settings
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent className="space-y-6">
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Funnel-Level Settings
+              </CardTitle>
+              <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="bg-gray-50 border-t border-dashed border-gray-200 space-y-6">
         
         {/* Main Settings Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -278,7 +285,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
           </CollapsibleContent>
         </Collapsible>
 
-      </CardContent>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };

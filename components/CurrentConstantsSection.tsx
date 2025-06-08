@@ -25,7 +25,7 @@ const CurrentConstantsSection: React.FC<CurrentConstantsSectionProps> = ({
 
   return (
     <Card className="border border-gray-200 shadow-sm">
-      <Collapsible defaultOpen>
+      <Collapsible>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
             <div className="flex items-center justify-between">

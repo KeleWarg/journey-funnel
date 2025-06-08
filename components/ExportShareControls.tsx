@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { useToast } from '../hooks/use-toast';
-import { DownloadIcon, ShareIcon, FileTextIcon } from 'lucide-react';
+import { DownloadIcon, ShareIcon, FileTextIcon, Loader2Icon } from 'lucide-react';
 import { BacksolveResult, SimulationData, JourneyConstants, Step } from '../types';
 
 interface JourneyPayload extends JourneyConstants {
@@ -28,6 +28,7 @@ const ExportShareControls: React.FC<ExportShareControlsProps> = ({
   llmCache
 }) => {
   const { toast } = useToast();
+  const [isGeneratingPDF, setIsGeneratingPDF] = React.useState(false);
 
   const downloadJSON = () => {
     try {
@@ -67,29 +68,157 @@ const ExportShareControls: React.FC<ExportShareControlsProps> = ({
   };
 
   const copyShareLink = async () => {
+    const url = window.location.href;
+    
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast({
-        title: "Link Copied",
-        description: "Shareable link copied to clipboard"
-      });
+      // Check if modern Clipboard API is available
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+        toast({
+          title: "Link Copied",
+          description: "Shareable link copied to clipboard"
+        });
+        return;
+      }
+      
+      // Fallback for older browsers or non-secure contexts
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        toast({
+          title: "Link Copied",
+          description: "Shareable link copied to clipboard"
+        });
+      } else {
+        throw new Error('execCommand failed');
+      }
+      
     } catch (error) {
       console.error('Copy failed:', error);
+      
+      // Final fallback - show the URL for manual copying
+      const message = `Please copy this link manually: ${url}`;
       toast({
         title: "Copy Failed",
-        description: "Unable to copy link to clipboard",
+        description: "Link displayed below for manual copying",
         variant: "destructive"
       });
+      
+      // Also log to console for easy copying
+      console.log('Shareable link:', url);
+      
+      // Show a prompt as additional fallback
+      if (window.prompt) {
+        window.prompt('Copy this link:', url);
+      }
     }
   };
 
-  const downloadPDF = () => {
-    // Placeholder for PDF generation
-    toast({
-      title: "PDF Export",
-      description: "PDF export feature coming soon",
-      variant: "default"
-    });
+  const downloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    
+    try {
+      // Dynamic imports to avoid SSR issues
+      const jsPDF = (await import('jspdf')).default;
+      const html2canvas = (await import('html2canvas')).default;
+      
+      toast({
+        title: "Generating PDF",
+        description: "Capturing analysis content...",
+      });
+
+      // Find the main content area to capture
+      const element = document.querySelector('.journey-calculator-content') || 
+                     document.querySelector('main') || 
+                     document.body;
+
+      if (!element) {
+        throw new Error('Could not find content to export');
+      }
+
+      // Capture the content as canvas
+      const canvas = await html2canvas(element as HTMLElement, {
+        scale: 2, // Higher resolution
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Calculate dimensions to fit the page
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth - 20; // 10mm margin on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10; // Top margin
+
+      // Add title page info
+      pdf.setFontSize(16);
+      pdf.text('Journey Funnel Analysis Report', pageWidth / 2, position, { align: 'center' });
+      pdf.setFontSize(12);
+      pdf.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, position + 10, { align: 'center' });
+      
+      position += 20;
+
+      // Add the captured content
+      if (imgHeight <= pageHeight - position - 10) {
+        // Content fits on one page
+        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      } else {
+        // Content needs multiple pages
+        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - position - 10);
+
+        while (heightLeft > 0) {
+          pdf.addPage();
+          position = 10; // Reset to top margin for new page
+          pdf.addImage(imgData, 'PNG', 10, position - imgHeight + (pageHeight - position - 10), imgWidth, imgHeight);
+          heightLeft -= (pageHeight - 20);
+        }
+      }
+
+      // Save the PDF
+      const filename = `journey-funnel-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(filename);
+
+      toast({
+        title: "PDF Generated",
+        description: `Report saved as ${filename}`,
+      });
+
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      toast({
+        title: "PDF Generation Failed",
+        description: error instanceof Error ? error.message : "Unable to generate PDF report",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   return (
@@ -122,14 +251,19 @@ const ExportShareControls: React.FC<ExportShareControlsProps> = ({
             Copy Shareable Link
           </Button>
 
-          {/* Download PDF (placeholder) */}
+          {/* Download PDF */}
           <Button
             onClick={downloadPDF}
+            disabled={isGeneratingPDF}
             variant="outline"
-            className="text-indigo-600 border-indigo-300 hover:bg-indigo-50"
+            className="text-indigo-600 border-indigo-300 hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <FileTextIcon className="h-4 w-4 mr-2" />
-            Download PDF Report
+            {isGeneratingPDF ? (
+              <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <FileTextIcon className="h-4 w-4 mr-2" />
+            )}
+            {isGeneratingPDF ? 'Generating PDF...' : 'Download PDF Report'}
           </Button>
 
         </div>
