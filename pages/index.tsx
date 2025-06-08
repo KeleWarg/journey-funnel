@@ -1017,6 +1017,15 @@ const JourneyCalculator: React.FC = () => {
 
   // New validation: Detailed Assessment requires Complete Analysis to be run first
   const canRunDetailedAssessment = simulationData !== null && backsolveResult !== null;
+  
+  // Debug logging to understand validation states
+  console.log('🔍 Validation Debug:', {
+    simulationData: !!simulationData,
+    backsolveResult: !!backsolveResult,
+    canRunDetailedAssessment,
+    categoryTitle: categoryTitle.trim(),
+    canRunCompleteAnalysis
+  });
 
   // Add specific Fogg analysis function per YAML spec 3.3_fogg_order_logic
   const runFoggAnalysis = useCallback(async () => {
