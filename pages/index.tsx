@@ -1012,6 +1012,12 @@ const JourneyCalculator: React.FC = () => {
     step && typeof step.observedCR === 'number' && step.observedCR !== null && step.observedCR !== undefined
   );
 
+  // Enhanced validation: Complete Analysis now requires category title
+  const canRunCompleteAnalysis = canRunSimulation && canRunBacksolve && categoryTitle.trim().length > 0;
+
+  // New validation: Detailed Assessment requires Complete Analysis to be run first
+  const canRunDetailedAssessment = simulationData !== null && backsolveResult !== null;
+
   // Add specific Fogg analysis function per YAML spec 3.3_fogg_order_logic
   const runFoggAnalysis = useCallback(async () => {
     try {
@@ -1211,7 +1217,8 @@ const JourneyCalculator: React.FC = () => {
           onRunCompleteAnalysis={runCompleteAnalysis}
           isRunningComplete={isRunningComplete}
           loadingMessage={loadingMessage}
-          canRunCompleteAnalysis={canRunSimulation && canRunBacksolve}
+          canRunCompleteAnalysis={canRunCompleteAnalysis}
+          categoryTitle={categoryTitle}
         />
 
         {/* Back-solve Result Panel */}
@@ -1258,6 +1265,7 @@ const JourneyCalculator: React.FC = () => {
             foggStepAssessments={foggStepAssessments}
             isFoggStepAssessing={isFoggStepAssessing}
             onRunFoggStepAssessment={runFoggStepAssessment}
+            canRunDetailedAssessment={canRunDetailedAssessment}
           />
         )}
 

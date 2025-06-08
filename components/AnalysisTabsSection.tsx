@@ -52,6 +52,9 @@ interface AnalysisTabsSectionProps {
   foggStepAssessments: FoggStepAssessmentResult | null;
   isFoggStepAssessing: boolean;
   onRunFoggStepAssessment: () => void;
+  
+  // Validation props
+  canRunDetailedAssessment: boolean;
 }
 
 const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
@@ -75,7 +78,8 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
   setLlmCache,
   foggStepAssessments,
   isFoggStepAssessing,
-  onRunFoggStepAssessment
+  onRunFoggStepAssessment,
+  canRunDetailedAssessment
 }) => {
   const [activeTab, setActiveTab] = useState('step_flow');
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -128,25 +132,32 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
           <p className="text-gray-600">
             Comprehensive analysis across behavioral models, frameworks, and copy optimization.
           </p>
-          <Button
-            onClick={() => {
-              if (onRunFoggAnalysis) onRunFoggAnalysis();
-              if (onRunEnhancedMCP) onRunEnhancedMCP();
-              if (onRunAssessment) onRunAssessment();
-              if (onRunFoggStepAssessment) onRunFoggStepAssessment();
-            }}
-            disabled={isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-md"
-          >
-            {(isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing) ? (
-              <>
-                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                Running Detailed Assessment...
-              </>
-            ) : (
-              '🚀 Run Detailed Assessment'
+          <div className="flex flex-col items-end gap-2">
+            <Button
+              onClick={() => {
+                if (onRunFoggAnalysis) onRunFoggAnalysis();
+                if (onRunEnhancedMCP) onRunEnhancedMCP();
+                if (onRunAssessment) onRunAssessment();
+                if (onRunFoggStepAssessment) onRunFoggStepAssessment();
+              }}
+              disabled={!canRunDetailedAssessment || isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-md disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {(isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing) ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                  Running Detailed Assessment...
+                </>
+              ) : (
+                '🚀 Run Detailed Assessment'
+              )}
+            </Button>
+            {!canRunDetailedAssessment && (
+              <p className="text-sm text-red-600 text-right">
+                Run Complete Analysis first to enable detailed assessment
+              </p>
             )}
-          </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>

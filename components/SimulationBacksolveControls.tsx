@@ -8,13 +8,15 @@ interface SimulationBacksolveControlsProps {
   isRunningComplete: boolean;
   loadingMessage: string;
   canRunCompleteAnalysis: boolean;
+  categoryTitle?: string;
 }
 
 const SimulationBacksolveControls: React.FC<SimulationBacksolveControlsProps> = ({
   onRunCompleteAnalysis,
   isRunningComplete,
   loadingMessage,
-  canRunCompleteAnalysis
+  canRunCompleteAnalysis,
+  categoryTitle = ''
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm">
@@ -49,7 +51,12 @@ const SimulationBacksolveControls: React.FC<SimulationBacksolveControlsProps> = 
         <div className="mt-4 space-y-2 text-sm text-gray-600">
           {!canRunCompleteAnalysis && (
             <p className="text-red-600">
-              Fill in all required fields (question text, input types, and observed CR values) to enable complete analysis.
+              Fill in all required fields (category title, question text, input types, and observed CR values) to enable complete analysis.
+            </p>
+          )}
+          {!categoryTitle.trim() && (
+            <p className="text-red-600 font-medium">
+              ⚠️ Category title is required - please enter a category for your funnel (e.g., "Lead Generation", "E-commerce Checkout", "SaaS Onboarding").
             </p>
           )}
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">

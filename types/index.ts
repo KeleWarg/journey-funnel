@@ -236,6 +236,7 @@ export interface SimulationBacksolveControlsProps {
   isRunningComplete: boolean;
   loadingMessage: string;
   canRunCompleteAnalysis: boolean;
+  categoryTitle?: string;
 }
 
 export interface APIResponse<T> {
