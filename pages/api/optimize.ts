@@ -22,7 +22,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       best_gamma_exit,
       include_sample_results = false,
       apply_llm_uplift = true,  // NEW: Apply LLM suggestions per action plan
-      llmAssessments = []      // NEW: LLM assessment results per step
+      llmAssessments = [],     // NEW: LLM assessment results per step
+      hybrid_seeding = false,   // NEW: Use Hybrid Fogg+ELM seeding
+      seeded_order = false      // NEW: Include seeded order in optimization
     } = req.body;
 
     const N = steps.length;
@@ -209,9 +211,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   return cumulativeCR;
 }
 
+    // NEW: Hybrid Fogg + ELM Seeding Logic
+    let hybridSeededOrder: number[] | null = null;
+    
+    if (seeded_order && hybrid_seeding && llmAssessments && llmAssessments.length > 0) {
+      console.log(`🧠 Computing Hybrid Fogg+ELM seeded order...`);
+      
+      // Step 1: Gather per-step attributes
+      const stepAttributes = steps.map((step: any, stepIndex: number) => {
+        const assessment = llmAssessments.find(a => a.stepIndex === stepIndex);
+        
+        // Default values if assessment not found
+        let motivation = 3.0;
+        let trigger = 3.0;
+        let elmScore = 3.0;
+        
+        if (assessment && assessment.frameworks) {
+          // Extract Fogg scores
+          const foggData = assessment.frameworks['Fogg'];
+          if (foggData) {
+            motivation = foggData.motivation_score || 3.0;
+            trigger = foggData.trigger_score || 3.0;
+          }
+          
+          // Extract ELM score (repurposed from estimated_uplift)
+          const elmData = assessment.frameworks['ELM'];
+          if (elmData) {
+            // Convert uplift percentage to 1-5 scale: map [-30pp, +30pp] -> [1, 5]
+            const upliftPP = elmData.estimated_uplift_pp || 0;
+            elmScore = Math.max(1, Math.min(5, 3 + (upliftPP / 30) * 2)); // Center at 3, scale ±2
+          }
+        }
+        
+        // Calculate ability from step complexity: ability = clamp(1, 6 - SC_s, 5)
+        let totalComplexity = 0;
+        step.questions.forEach((q: any) => {
+          let Q_s = parseInt(q.input_type) || 2;
+          const I_s = q.invasiveness || 2;
+          const D_s = q.difficulty || 2;
+          totalComplexity += (Q_s + I_s + D_s) / 3;
+        });
+        const avgComplexity = totalComplexity / step.questions.length;
+        const ability = Math.max(1, Math.min(5, 6 - avgComplexity));
+        
+        // Compute Fogg score: motivation × ability × trigger
+        const foggScore = motivation * ability * trigger;
+        
+        return {
+          stepIndex,
+          motivation,
+          ability,
+          trigger,
+          foggScore,
+          elmScore
+        };
+      });
+      
+      // Step 2: Normalize scores to [0, 1] range
+      const foggScores = stepAttributes.map(attr => attr.foggScore);
+      const elmScores = stepAttributes.map(attr => attr.elmScore);
+      
+      const minFogg = Math.min(...foggScores);
+      const maxFogg = Math.max(...foggScores);
+      const minElm = Math.min(...elmScores);
+      const maxElm = Math.max(...elmScores);
+      
+      const normalizedAttributes = stepAttributes.map(attr => {
+        const foggNormalized = maxFogg > minFogg ? (attr.foggScore - minFogg) / (maxFogg - minFogg) : 0.5;
+        const elmNormalized = maxElm > minElm ? (attr.elmScore - minElm) / (maxElm - minElm) : 0.5;
+        
+        // Compute hybrid score as average of normalized scores
+        const hybridScore = (foggNormalized + elmNormalized) / 2;
+        
+        return {
+          ...attr,
+          foggNormalized,
+          elmNormalized,
+          hybridScore
+        };
+      });
+      
+      // Step 3: Sort by hybrid score (descending) to get seeded order
+      normalizedAttributes.sort((a, b) => b.hybridScore - a.hybridScore);
+      hybridSeededOrder = normalizedAttributes.map(attr => attr.stepIndex);
+      
+      console.log(`🎯 Hybrid seeded order: [${hybridSeededOrder.join(',')}]`);
+      console.log(`📊 Step scores:`, normalizedAttributes.map(attr => 
+        `Step ${attr.stepIndex}: Fogg=${attr.foggScore.toFixed(1)}, ELM=${attr.elmScore.toFixed(1)}, Hybrid=${attr.hybridScore.toFixed(3)}`
+      ));
+    }
+
     // NEW: Smart algorithm selection per action plan
     const useExhaustiveSearch = N <= 8; // Expanded from N≤7 to N≤8 per YAML patch
-    const algorithm = useExhaustiveSearch ? "exhaustive" : "heuristic_sampling";
+    const algorithm = useExhaustiveSearch ? "exhaustive" : (hybrid_seeding ? "hybrid_seeded_sampling" : "heuristic_sampling");
     
     console.log(`📊 Optimization Strategy: ${algorithm} (N=${N})`);
     console.log(`🔄 ${useExhaustiveSearch ? `All ${factorial(N)} permutations` : `${sample_count} random samples`}`);
@@ -377,17 +469,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         samplesEvaluated++;
       }
     } else {
-      // HEURISTIC SAMPLING: Random permutations + some systematic patterns
+      // HEURISTIC SAMPLING: Random permutations + hybrid seeding
       console.log(`🔄 Starting heuristic sampling of ${sample_count} permutations...`);
+      
+      // Helper function for single swap perturbation
+      function shuffleOneSwap(order: number[]): number[] {
+        const result = [...order];
+        const pos1 = Math.floor(Math.random() * result.length);
+        const pos2 = Math.floor(Math.random() * result.length);
+        [result[pos1], result[pos2]] = [result[pos2], result[pos1]];
+        return result;
+      }
       
       for (let trial = 0; trial < sample_count; trial++) {
         let permOrder;
         
-        // Mix random with some systematic patterns
-        if (trial < 100) {
-          // First 100: Try systematic patterns (reverse, middle-out, etc.)
-          if (trial === 0) permOrder = Array.from({ length: N }, (_, i) => N - 1 - i); // reverse
-          else if (trial === 1) permOrder = Array.from({ length: N }, (_, i) => i); // identity
+        if (hybrid_seeding && hybridSeededOrder && trial === 0) {
+          // First trial: Use the hybrid seeded order
+          permOrder = [...hybridSeededOrder];
+          console.log(`🌟 Trial 0: Using hybrid seeded order [${permOrder.join(',')}]`);
+        } else if (hybrid_seeding && hybridSeededOrder && trial % 1000 === 0 && trial > 0) {
+          // Every 1000 trials: Use slight perturbation of seeded order
+          permOrder = shuffleOneSwap(hybridSeededOrder);
+        } else if (trial < 100) {
+          // First 100: Try systematic patterns
+          if (trial === 1) permOrder = Array.from({ length: N }, (_, i) => N - 1 - i); // reverse
+          else if (trial === 2) permOrder = Array.from({ length: N }, (_, i) => i); // identity
           else permOrder = shuffleArray(Array.from({ length: N }, (_, i) => i));
         } else {
           // Rest: Pure random sampling
@@ -404,6 +511,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (crTotal > optimalCRTotal) {
           optimalCRTotal = crTotal;
           optimalOrder = permOrder;
+          
+          if (hybrid_seeding && hybridSeededOrder && 
+              JSON.stringify(permOrder) === JSON.stringify(hybridSeededOrder)) {
+            console.log(`🎯 Seeded order achieved best result! CR=${(crTotal*100).toFixed(2)}%`);
+          }
         }
         
         samplesEvaluated++;
@@ -421,7 +533,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`- Best-Modelled CR: ${(modelCeilingCR * 100).toFixed(2)}%`);
     console.log(`- Potential Gain: ${potentialGainPP.toFixed(2)} pp`);
 
-    // Prepare response with ceiling analysis per action plan
+    // Prepare response with ceiling analysis and hybrid seeding info
     const response = {
       optimalOrder,
       optimalCRTotal,
@@ -441,6 +553,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         improvement_possible: potentialGainPP > 0.5 // Worth optimizing if >0.5pp gain
       },
       llm_uplifts_applied: apply_llm_uplift && llmAssessments && llmAssessments.length > 0,
+      hybrid_seeding: {
+        enabled: hybrid_seeding && seeded_order,
+        seeded_order: hybridSeededOrder,
+        seeded_order_is_optimal: hybridSeededOrder && JSON.stringify(optimalOrder) === JSON.stringify(hybridSeededOrder)
+      },
       ...(include_sample_results && { allSamples })
     };
 

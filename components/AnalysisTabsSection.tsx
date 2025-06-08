@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { BarChart3Icon, BrainIcon, SparklesIcon } from 'lucide-react';
 import MCPComparisonTable from './MCPComparisonTable';
 import EnhancedComparisonTable from './EnhancedComparisonTable';
-import { UniqueCombinationTable } from './UniqueCombinationTable';
+import UniqueCombinationTable from './UniqueCombinationTable';
 import FoggModelAnalysis from './FoggModelAnalysis';
 import FogMetricsTable from './FogMetricsTable';
 import FoggOrderResult from './FoggOrderResult';
@@ -55,7 +55,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
   onRunAssessment,
   baselineCR
 }) => {
-  const [activeTab, setActiveTab] = useState('standard');
+  const [activeTab, setActiveTab] = useState('fogg_model');
 
   // Get Fogg variant from results (with extended fogg_metrics property)
   const foggVariant: (MCPFunnelVariant & { fogg_metrics?: any[] }) | null = 
@@ -69,15 +69,11 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Analysis Results</CardTitle>
+        <CardTitle>Specialized Analysis</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="standard" className="flex items-center gap-2">
-              <BarChart3Icon className="h-4 w-4" />
-              Standard Analysis
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="fogg_model" className="flex items-center gap-2">
               <BrainIcon className="h-4 w-4" />
               Fogg Model
@@ -88,62 +84,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="standard">
-            {/* Standard Analysis - ComparisonTable per YAML spec */}
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-semibold">Framework Analysis & Comparison</h3>
-                  <p className="text-gray-600">
-                    Compare performance across different optimization frameworks and step orderings.
-                  </p>
-                </div>
-                {onRunEnhancedMCP && (
-                  <Button
-                    onClick={onRunEnhancedMCP}
-                    disabled={isEnhancedMCPAnalyzing || !steps || steps.length === 0}
-                    className="bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    {isEnhancedMCPAnalyzing ? 'Processing...' : 'Enhanced MCP Analysis'}
-                  </Button>
-                )}
-              </div>
-              
-              {/* Standard MCP Framework Comparison */}
-              <MCPComparisonTable
-                mcpResult={mcpFunnelResult}
-                onApplyVariant={onApplyRecommendedOrder || (() => {})}
-                isLoading={isMCPAnalyzing}
-              />
-              
-              {/* Enhanced Framework Variant Analysis */}
-              {enhancedMcpResult && (
-                <div className="mt-6">
-                  <h4 className="text-md font-semibold mb-3">Enhanced Framework Analysis</h4>
-                  {enhancedMcpResult.unique_combinations ? (
-                    <UniqueCombinationTable
-                      combinations={enhancedMcpResult.unique_combinations}
-                      baselineCR={enhancedMcpResult.baseline_CR_total}
-                    />
-                  ) : (
-                    <EnhancedComparisonTable
-                      variantResults={enhancedMcpResult.variant_results}
-                      ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
-                      isLoading={isEnhancedMCPAnalyzing}
-                      onApplyVariant={onApplyEnhancedVariant || (() => {})}
-                    />
-                  )}
-                </div>
-              )}
-              
-              {!mcpFunnelResult && !enhancedMcpResult && !isMCPAnalyzing && !isEnhancedMCPAnalyzing && (
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Run framework analysis to see comparison results</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
+
 
           <TabsContent value="fogg_model">
             {/* Fogg Model - FogMetricsTable + FoggOrderResult per YAML spec */}

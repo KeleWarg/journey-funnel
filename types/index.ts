@@ -123,6 +123,13 @@ export interface OptimizeResult {
     order: number[];
     CR_total: number;
   }>;
+  hybrid_seeding?: {
+    enabled: boolean;
+    seeded_order: number[] | null;
+    seeded_order_is_optimal: boolean;
+  };
+  algorithm?: string;
+  samplesEvaluated?: number;
 }
 
 export interface JourneyConstants {
@@ -158,6 +165,9 @@ export interface OptimizeControlsProps {
   setNumSamples: (value: number) => void;
   onRunOptimize: () => void;
   isOptimizing: boolean;
+  hybridSeeding: boolean;
+  setHybridSeeding: (value: boolean) => void;
+  hasLLMAssessments?: boolean;
 }
 
 export interface FunnelSettingsSectionProps {

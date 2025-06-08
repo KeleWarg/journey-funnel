@@ -11,13 +11,19 @@ interface OptimizeControlsProps {
   setNumSamples: (value: number) => void;
   onRunOptimize: () => void;
   isOptimizing: boolean;
+  hybridSeeding: boolean;
+  setHybridSeeding: (value: boolean) => void;
+  hasLLMAssessments?: boolean;
 }
 
 const OptimizeControls: React.FC<OptimizeControlsProps> = ({
   numSamples,
   setNumSamples,
   onRunOptimize,
-  isOptimizing
+  isOptimizing,
+  hybridSeeding,
+  setHybridSeeding,
+  hasLLMAssessments = false
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm bg-indigo-50">
@@ -29,7 +35,7 @@ const OptimizeControls: React.FC<OptimizeControlsProps> = ({
       
       <CardContent className="space-y-4">
         
-        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           
           {/* Number of Samples Input */}
           <div className="space-y-2">
@@ -39,30 +45,60 @@ const OptimizeControls: React.FC<OptimizeControlsProps> = ({
             <Input
               id="num-samples"
               type="number"
-              step={100}
-              min={100}
-              max={10000}
+              step={1000}
+              min={1000}
+              max={20000}
               value={numSamples}
-              onChange={(e) => setNumSamples(parseInt(e.target.value) || 5000)}
+              onChange={(e) => setNumSamples(parseInt(e.target.value) || 20000)}
               className="w-32 border-gray-300 focus:border-indigo-500"
             />
           </div>
 
-          {/* Run Optimize Button */}
-          <Button
-            onClick={onRunOptimize}
-            disabled={isOptimizing}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400"
-          >
-            {isOptimizing ? (
-              <>
-                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                Optimizing...
-              </>
-            ) : (
-              'Run Optimize'
+          {/* Hybrid Seeding Checkbox */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">
+              Optimization Options
+            </Label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="hybrid-seeding"
+                checked={hybridSeeding}
+                onChange={(e) => setHybridSeeding(e.target.checked)}
+                disabled={!hasLLMAssessments}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+              />
+              <label 
+                htmlFor="hybrid-seeding" 
+                className={`text-sm ${hasLLMAssessments ? 'text-gray-900' : 'text-gray-400'}`}
+              >
+                Hybrid Fogg + ELM Seeding
+              </label>
+            </div>
+            {!hasLLMAssessments && (
+              <p className="text-xs text-amber-600">
+                ⚠️ Run LLM Assessment first to enable seeding
+              </p>
             )}
-          </Button>
+          </div>
+
+          {/* Run Optimize Button */}
+          <div className="flex items-end">
+            <Button
+              onClick={onRunOptimize}
+              disabled={isOptimizing}
+              className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 w-full lg:w-auto"
+            >
+              {isOptimizing ? (
+                <>
+                  <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                  Optimizing...
+                </>
+              ) : (
+                'Run Optimize'
+              )}
+            </Button>
+          </div>
 
         </div>
 
@@ -72,7 +108,10 @@ const OptimizeControls: React.FC<OptimizeControlsProps> = ({
             <strong>Optimization</strong> will test different question orderings to find the flow that maximizes conversion rate.
           </p>
           <p>
-            More samples = better results but longer processing time. After completion, the Results Table will show optimal positions and the best overall CR.
+            More samples = better results but longer processing time. <strong>Hybrid Seeding</strong> uses Fogg Behavior Model + ELM analysis to intelligently seed the search with high-potential orderings.
+          </p>
+          <p>
+            After completion, the Results Table will show optimal positions and the best overall CR.
           </p>
         </div>
 

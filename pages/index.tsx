@@ -2,6 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { useToast } from '@hooks/use-toast';
 import Link from 'next/link';
 import { Button } from '@components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@components/ui/card';
+import { Label } from '@components/ui/label';
+import { Input } from '@components/ui/input';
+import { Loader2Icon, BarChart3Icon } from 'lucide-react';
 import CurrentConstantsSection from '@components/CurrentConstantsSection';
 import FunnelSettingsSection from '@components/FunnelSettingsSection';
 import StepsEditor from '@components/StepsEditor';
@@ -15,10 +19,11 @@ import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
 import MCPComparisonTable from '@components/MCPComparisonTable';
 import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
 import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
+import UniqueCombinationTable from '@components/UniqueCombinationTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
 import FoggModelAnalysis from '@components/FoggModelAnalysis';
 import AnalysisTabsSection from '@components/AnalysisTabsSection';
-import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation } from '../types';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -101,24 +106,14 @@ const JourneyCalculator: React.FC = () => {
   const [journeyType, setJourneyType] = useState<JourneyType>('transactional');
   const [backsolveResult, setBacksolveResult] = useState<BacksolveResult | null>(null);
   const [simulationData, setSimulationData] = useState<SimulationData | null>(null);
-  const [optimizeResult, setOptimizeResult] = useState<{
-    optimalOrder: number[];
-    optimalCRTotal: number;
-    algorithm: string;
-    samplesEvaluated: number;
-    ceiling_analysis?: {
-      baseline_CR: number;
-      model_ceiling_CR: number;
-      potential_gain_pp: number;
-      improvement_possible: boolean;
-      best_framework?: string;
-      optimization_worthwhile?: boolean;
+  const [optimizeResult, setOptimizeResult] = useState<OptimizeResult & {
+    model_validation?: {
+      current_predicted_CR: number;
+      current_observed_CR: number;
+      accuracy_error_percent: number;
+      is_reliable: boolean;
+      warning?: string;
     };
-    llm_uplifts_applied?: boolean;
-    allSamples?: Array<{
-      order: number[];
-      crTotal: number;
-    }>;
   } | null>(null);
   const [optimalPositions, setOptimalPositions] = useState<Record<number, number>>({});
   const [llmCache, setLlmCache] = useState<Record<string, string>>({});
@@ -132,6 +127,7 @@ const JourneyCalculator: React.FC = () => {
   const [isMCPAnalyzing, setIsMCPAnalyzing] = useState(false);
   const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
   const [numSamples, setNumSamples] = useState(20000); // Increased to 20000 per YAML patch - unlocking reorder upside
+  const [hybridSeeding, setHybridSeeding] = useState(false); // NEW: Hybrid Fogg+ELM seeding
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
   const [isClassifyingBoosts, setIsClassifyingBoosts] = useState(false);
 
@@ -498,7 +494,10 @@ const JourneyCalculator: React.FC = () => {
         use_backsolved_constants: backsolveResult ? true : false,
         best_k: backsolveResult?.bestParams?.best_k,
         best_gamma_exit: backsolveResult?.bestParams?.best_gamma_exit,
-        include_sample_results: true
+        include_sample_results: true,
+        hybrid_seeding: hybridSeeding,
+        seeded_order: hybridSeeding,
+        llmAssessments: llmAssessmentResult?.assessments || []
       };
       const response = await fetch('/api/optimize', {
         method: 'POST',
@@ -527,7 +526,7 @@ const JourneyCalculator: React.FC = () => {
       
       toast({
         title: "Optimization Complete",
-        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm`
+        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm${data.hybrid_seeding?.enabled ? ' with Hybrid Fogg+ELM seeding' : ''}`
       });
     } catch (error) {
       console.error('Optimization error:', error);
@@ -1062,14 +1061,6 @@ const JourneyCalculator: React.FC = () => {
           />
         )}
 
-        {/* Optimize Controls */}
-        <OptimizeControls
-          numSamples={numSamples}
-          setNumSamples={setNumSamples}
-          onRunOptimize={runOptimize}
-          isOptimizing={isOptimizing}
-        />
-
         {/* Results Table */}
         {simulationData && (
           <ResultsTable
@@ -1077,12 +1068,11 @@ const JourneyCalculator: React.FC = () => {
             simulationData={simulationData}
             optimalPositions={optimalPositions}
             optimizeData={optimizeResult ? {
-              optimal_step_order: optimizeResult.optimalOrder,
-              optimal_CR_total: optimizeResult.optimalCRTotal,
-              sample_results: optimizeResult.allSamples?.map(s => ({
-                order: s.order,
-                CR_total: s.crTotal
-              }))
+              optimal_step_order: optimizeResult.optimal_step_order,
+              optimal_CR_total: optimizeResult.optimal_CR_total,
+              sample_results: optimizeResult.sample_results,
+              hybrid_seeding: optimizeResult.hybrid_seeding,
+              algorithm: optimizeResult.algorithm
             } : undefined}
             llmCache={llmCache}
             setLlmCache={setLlmCache}
@@ -1090,7 +1080,77 @@ const JourneyCalculator: React.FC = () => {
           />
         )}
 
-        {/* Unified Analysis Results Section */}
+        {/* Standard Framework Analysis Section */}
+        {simulationData && (
+          <Card className="border border-gray-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                📊 Framework Analysis & Comparison
+              </CardTitle>
+              <p className="text-gray-600">
+                Compare performance across different optimization frameworks and step orderings.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                                 <div className="flex justify-between items-center">
+                   <div className="flex gap-4">
+                     <Button
+                       onClick={runMCPFunnelAnalysis}
+                       disabled={isMCPAnalyzing || !steps || steps.length === 0}
+                       className="bg-blue-600 hover:bg-blue-700"
+                     >
+                       {isMCPAnalyzing ? 'Processing...' : 'Run Framework Analysis'}
+                     </Button>
+                     <Button
+                       onClick={runEnhancedMCPAnalysis}
+                       disabled={isEnhancedMCPAnalyzing || !steps || steps.length === 0}
+                       className="bg-indigo-600 hover:bg-indigo-700"
+                     >
+                       {isEnhancedMCPAnalyzing ? 'Processing...' : 'Enhanced Analysis'}
+                     </Button>
+                   </div>
+                 </div>
+                
+                {/* Standard MCP Framework Comparison */}
+                <MCPComparisonTable
+                  mcpResult={mcpFunnelResult}
+                  onApplyVariant={applyMCPVariant || (() => {})}
+                  isLoading={isMCPAnalyzing}
+                />
+                
+                {/* Enhanced Framework Variant Analysis */}
+                {enhancedMcpResult && (
+                  <div className="mt-6">
+                    <h4 className="text-md font-semibold mb-3">Enhanced Framework Analysis</h4>
+                    {enhancedMcpResult.unique_combinations ? (
+                      <UniqueCombinationTable
+                        combinations={enhancedMcpResult.unique_combinations}
+                        baselineCR={enhancedMcpResult.baseline_CR_total}
+                      />
+                    ) : (
+                      <EnhancedComparisonTable
+                        variantResults={enhancedMcpResult.variant_results}
+                        ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
+                        isLoading={isEnhancedMCPAnalyzing}
+                        onApplyVariant={applyEnhancedVariant || (() => {})}
+                      />
+                    )}
+                  </div>
+                )}
+                
+                {!mcpFunnelResult && !enhancedMcpResult && !isMCPAnalyzing && !isEnhancedMCPAnalyzing && (
+                  <div className="text-center py-8 text-gray-500">
+                    <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Run framework analysis to see comparison results</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Specialized Analysis Results Section */}
         {simulationData && (
           <AnalysisTabsSection
             mcpFunnelResult={mcpFunnelResult}
@@ -1122,6 +1182,161 @@ const JourneyCalculator: React.FC = () => {
             baselineCR={simulationData?.CR_total || 0}
           />
         )}
+
+        {/* Step Order Optimization Section */}
+        {simulationData && (
+          <Card className="border border-gray-200 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-indigo-900">
+                🎯 Find Optimal Step Flow
+              </CardTitle>
+              <p className="text-gray-600">
+                Discover the best step ordering using Monte Carlo optimization with optional hybrid Fogg+ELM seeding.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Optimize Controls */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="num-samples" className="text-sm font-medium text-gray-700">
+                    # of Samples to Try
+                  </Label>
+                  <Input
+                    id="num-samples"
+                    type="number"
+                    step={1000}
+                    min={1000}
+                    max={20000}
+                    value={numSamples}
+                    onChange={(e) => setNumSamples(parseInt(e.target.value) || 20000)}
+                    className="w-32 border-gray-300 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">
+                    Optimization Options
+                  </Label>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="hybrid-seeding"
+                      checked={hybridSeeding}
+                      onChange={(e) => setHybridSeeding(e.target.checked)}
+                      disabled={!llmAssessmentResult?.assessments?.length}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <label 
+                      htmlFor="hybrid-seeding" 
+                      className={`text-sm ${llmAssessmentResult?.assessments?.length ? 'text-gray-900' : 'text-gray-400'}`}
+                    >
+                      Hybrid Fogg + ELM Seeding
+                    </label>
+                  </div>
+                  {!llmAssessmentResult?.assessments?.length && (
+                    <p className="text-xs text-amber-600">
+                      ⚠️ Run LLM Assessment first to enable seeding
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-end">
+                  <Button
+                    onClick={runOptimize}
+                    disabled={isOptimizing}
+                    className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 w-full lg:w-auto"
+                  >
+                    {isOptimizing ? (
+                      <>
+                        <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                        Optimizing...
+                      </>
+                    ) : (
+                      'Find Optimal Flow'
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Help Text */}
+              <div className="text-sm text-gray-600 space-y-1 bg-white p-4 rounded-lg">
+                <p>
+                  <strong>Step Order Optimization</strong> tests different question orderings to find the flow that maximizes conversion rate.
+                </p>
+                <p>
+                  More samples = better results but longer processing time. <strong>Hybrid Seeding</strong> uses Fogg Behavior Model + ELM analysis to intelligently seed the search with high-potential orderings.
+                </p>
+              </div>
+
+              {/* Optimization Results */}
+              {optimizeResult && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-gray-800">🚀 Optimization Results</h4>
+                    {optimizeResult.algorithm && (
+                      <span className="text-sm text-gray-600 bg-white px-2 py-1 rounded">
+                        {optimizeResult.algorithm === 'hybrid_seeded_sampling' ? '🧠 Hybrid Seeded' : 
+                         optimizeResult.algorithm === 'exhaustive' ? '🔍 Exhaustive' : '🔄 Heuristic'} Search
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Hybrid Seeding Info */}
+                  {optimizeResult.hybrid_seeding?.enabled && optimizeResult.hybrid_seeding.seeded_order && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-blue-900">🧠 Hybrid Fogg+ELM Seeded Order:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {optimizeResult.hybrid_seeding.seeded_order?.map((stepIndex, position) => (
+                            <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                              Step {stepIndex + 1}
+                            </span>
+                          )) || []}
+                        </div>
+                        {optimizeResult.hybrid_seeding.seeded_order_is_optimal && (
+                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
+                            🎯 Optimal!
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-blue-700">
+                        This order was computed using Fogg Behavior Model (motivation × ability × trigger) 
+                        combined with ELM elaboration likelihood scores to intelligently seed the search.
+                        {optimizeResult.hybrid_seeding.seeded_order_is_optimal 
+                          ? ' The seeded order achieved the optimal result!' 
+                          : ' Used as starting point for 20,000-sample Monte Carlo search.'}
+                      </p>
+                    </div>
+                  )}
+                  
+                                    {/* Optimal Flow */}
+                  {optimizeResult.optimal_step_order && (
+                    <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-purple-700">✨ Optimal Flow</span>
+                        <span className="text-lg font-bold text-green-700">
+                          {(optimizeResult.optimal_CR_total * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {optimizeResult.optimal_step_order.map((originalStepIndex, position) => (
+                          <div key={position} className="flex items-center gap-1">
+                            <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                              Step {originalStepIndex + 1}
+                            </span>
+                            {position < optimizeResult.optimal_step_order.length - 1 && (
+                              <span className="text-gray-400">→</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
         {/* Export & Share Controls */}
         <ExportShareControls
           simulationData={simulationData}
@@ -1136,6 +1351,17 @@ const JourneyCalculator: React.FC = () => {
           <DataVisualization
             simulationData={simulationData}
             optimizeResult={optimizeResult}
+            steps={steps}
+            E={E}
+            N_importance={N}
+            source={source}
+            c1={c1}
+            c2={c2}
+            c3={c3}
+            w_c={w_c}
+            w_f={w_f}
+            w_E={w_E}
+            w_N={w_N}
           />
         )}
 

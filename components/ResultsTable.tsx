@@ -20,6 +20,12 @@ interface ResultsTableProps {
       order: number[];
       CR_total: number;
     }>;
+    hybrid_seeding?: {
+      enabled: boolean;
+      seeded_order: number[] | null;
+      seeded_order_is_optimal: boolean;
+    };
+    algorithm?: string;
   };
   llmCache: Record<string, string>;
   setLlmCache: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -204,29 +210,67 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       {/* Optimization Results Section */}
       {optimizeData && (
         <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-gray-200">
-          <h4 className="text-lg font-semibold text-gray-800 mb-4">🚀 Step Order Optimization</h4>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-semibold text-gray-800">🚀 Step Order Optimization</h4>
+            {optimizeData.algorithm && (
+              <span className="text-sm text-gray-600 bg-white px-2 py-1 rounded">
+                {optimizeData.algorithm === 'hybrid_seeded_sampling' ? '🧠 Hybrid Seeded' : 
+                 optimizeData.algorithm === 'exhaustive' ? '🔍 Exhaustive' : '🔄 Heuristic'} Search
+              </span>
+            )}
+          </div>
+          
+          {/* Hybrid Seeding Info */}
+          {optimizeData.hybrid_seeding?.enabled && optimizeData.hybrid_seeding.seeded_order && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-blue-900">🧠 Hybrid Fogg+ELM Seeded Order:</span>
+                <div className="flex flex-wrap gap-1">
+                  {optimizeData.hybrid_seeding.seeded_order?.map((stepIndex, position) => (
+                    <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                      Step {stepIndex + 1}
+                    </span>
+                  )) || []}
+                </div>
+                {optimizeData.hybrid_seeding.seeded_order_is_optimal && (
+                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
+                    🎯 Optimal!
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-blue-700">
+                This order was computed using Fogg Behavior Model (motivation × ability × trigger) 
+                combined with ELM elaboration likelihood scores to intelligently seed the search.
+                {optimizeData.hybrid_seeding.seeded_order_is_optimal 
+                  ? ' The seeded order achieved the optimal result!' 
+                  : ' Used as starting point for 20,000-sample Monte Carlo search.'}
+              </p>
+            </div>
+          )}
           
           {/* Ideal Flow */}
-          <div className="mb-4 p-3 bg-white rounded-lg shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-purple-700">✨ Ideal Flow</span>
-              <span className="text-lg font-bold text-green-700">
-                {(optimizeData.optimal_CR_total * 100).toFixed(2)}%
-              </span>
+          {optimizeData.optimal_step_order && (
+            <div className="mb-4 p-3 bg-white rounded-lg shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-purple-700">✨ Ideal Flow</span>
+                <span className="text-lg font-bold text-green-700">
+                  {(optimizeData.optimal_CR_total * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {optimizeData.optimal_step_order.map((originalStepIndex, position) => (
+                  <div key={position} className="flex items-center gap-1">
+                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                      Step {originalStepIndex + 1}
+                    </span>
+                    {position < optimizeData.optimal_step_order.length - 1 && (
+                      <span className="text-gray-400">→</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {optimizeData.optimal_step_order.map((originalStepIndex, position) => (
-                <div key={position} className="flex items-center gap-1">
-                  <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
-                    Step {originalStepIndex + 1}
-                  </span>
-                  {position < optimizeData.optimal_step_order.length - 1 && (
-                    <span className="text-gray-400">→</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
+          )}
 
           {/* Other Combinations */}
           {optimizeData.sample_results && optimizeData.sample_results.length > 1 && (
