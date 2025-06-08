@@ -16,7 +16,6 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
   isLoading,
   baselineCR
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
 
   const toggleStepExpanded = (stepIndex: number) => {
@@ -40,29 +39,24 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
 
   return (
     <Card className="border border-purple-200 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-purple-100/50 transition-colors">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SparklesIcon className="h-5 w-5 text-purple-600" />
-                <CardTitle className="text-lg font-semibold text-purple-900">
-                  LLM Copywriting Assessment
-                </CardTitle>
-                {upliftData && (
-                  <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    <TrendingUpIcon className="h-3 w-3" />
-                    +{upliftData.totalUpliftPP.toFixed(1)}pp
-                  </div>
-                )}
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="h-5 w-5 text-purple-600" />
+            <CardTitle className="text-lg font-semibold text-purple-900">
+              LLM Copywriting Assessment
+            </CardTitle>
+            {upliftData && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                <TrendingUpIcon className="h-3 w-3" />
+                +{upliftData.totalUpliftPP.toFixed(1)}pp
               </div>
-              <ChevronDownIcon className="h-5 w-5 text-purple-600" />
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        
-        <CollapsibleContent>
-          <CardContent className="space-y-4">
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
             
             {/* Description */}
             <div className="text-center py-2">
@@ -201,9 +195,7 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
               <p><strong>How it works:</strong> Each framework analyzes your question copy and suggests improvements based on proven psychology and UX principles. The estimated uplift is calculated based on current performance, complexity, and improvement potential.</p>
             </div>
 
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+      </CardContent>
     </Card>
   );
 };

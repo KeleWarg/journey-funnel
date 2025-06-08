@@ -154,13 +154,13 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
               <ListIcon className="h-4 w-4" />
               Step Flow
             </TabsTrigger>
-            <TabsTrigger value="framework_analysis" className="flex items-center gap-2">
-              <BarChart3Icon className="h-4 w-4" />
-              Framework Analysis
-            </TabsTrigger>
             <TabsTrigger value="llm_copy" className="flex items-center gap-2">
               <SparklesIcon className="h-4 w-4" />
-              Copy & Uplift
+              Content Strategy
+            </TabsTrigger>
+            <TabsTrigger value="framework_analysis" className="flex items-center gap-2">
+              <BarChart3Icon className="h-4 w-4" />
+              Framework Benchmarks
             </TabsTrigger>
           </TabsList>
 
@@ -361,13 +361,31 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
             </div>
           </TabsContent>
 
+          <TabsContent value="llm_copy">
+            {/* Content Strategy - LLMAssessmentPanel per YAML spec */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Content Strategy & Optimization</h3>
+                <p className="text-gray-600">
+                  AI-powered analysis of step content with strategic improvement suggestions and uplift predictions.
+                </p>
+              </div>
+              
+              <LLMAssessmentPanel
+                assessmentResult={llmAssessmentResult}
+                isLoading={isAssessing}
+                baselineCR={baselineCR}
+              />
+            </div>
+          </TabsContent>
+
           <TabsContent value="framework_analysis">
-            {/* Framework Analysis - ComparisonTable per YAML spec */}
+            {/* Framework Benchmarks - ComparisonTable per YAML spec */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold">Framework Analysis & Comparison</h3>
+                <h3 className="text-lg font-semibold">Framework Benchmarks & Comparison</h3>
                 <p className="text-gray-600">
-                  Compare performance across different optimization frameworks and step orderings.
+                  Benchmark performance across different optimization frameworks and step orderings.
                 </p>
               </div>
               
@@ -381,27 +399,9 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
               {!mcpFunnelResult && !isMCPAnalyzing && (
                 <div className="text-center py-8 text-gray-500">
                   <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>Run detailed assessment to see framework comparison results</p>
+                  <p>Run detailed assessment to see framework benchmark results</p>
                 </div>
               )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="llm_copy">
-            {/* Copy & Uplift - LLMAssessmentPanel per YAML spec */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Copy Optimization & Uplift Analysis</h3>
-                <p className="text-gray-600">
-                  AI-powered analysis of step copy with specific improvement suggestions and uplift predictions.
-                </p>
-              </div>
-              
-              <LLMAssessmentPanel
-                assessmentResult={llmAssessmentResult}
-                isLoading={isAssessing}
-                baselineCR={baselineCR}
-              />
             </div>
           </TabsContent>
         </Tabs>
