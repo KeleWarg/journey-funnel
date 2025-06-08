@@ -585,25 +585,100 @@ async def handle_assess_boost_elements_fast(arguments: Dict[str, Any]) -> List[t
 
 async def main():
     """Run the fast MCP server"""
-    from mcp.server.stdio import stdio_server
     
     logger.info("🚀 Starting FAST Journey Funnel MCP Server...")
     logger.info(f"⚡ Optimization: Single API call for all frameworks")
     logger.info(f"🔑 OpenAI integration: {'✅ Enabled' if openai_client else '❌ Disabled'}")
     
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            InitializationOptions(
-                server_name="journey-funnel-mcp-fast",
-                server_version="2.0.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
+    # Check if running in HTTP mode (Cloud environment)
+    port = int(os.environ.get("PORT", 8080))
+    
+    if os.environ.get("PORT"):
+        # HTTP mode for cloud deployment
+        from starlette.applications import Starlette
+        from starlette.routing import Route
+        from starlette.responses import JSONResponse
+        import uvicorn
+        
+        logger.info(f"🌐 Starting HTTP server on port {port}")
+        
+        async def health_check(request):
+            return JSONResponse({"status": "healthy", "server": "journey-funnel-mcp-fast"})
+        
+        async def list_tools_endpoint(request):
+            try:
+                tools = await handle_list_tools()
+                return JSONResponse({
+                    "tools": [
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": tool.inputSchema
+                        } for tool in tools
+                    ]
+                })
+            except Exception as e:
+                logger.error(f"Error listing tools: {e}")
+                return JSONResponse({"error": str(e)}, status_code=500)
+        
+        async def call_tool_endpoint(request):
+            try:
+                # Check API key if configured
+                mcp_api_key = os.environ.get("MCP_API_KEY")
+                if mcp_api_key:
+                    auth_header = request.headers.get("Authorization")
+                    if not auth_header or not auth_header.startswith("Bearer "):
+                        return JSONResponse({"error": "Missing or invalid authorization header"}, status_code=401)
+                    
+                    provided_key = auth_header.replace("Bearer ", "")
+                    if provided_key != mcp_api_key:
+                        return JSONResponse({"error": "Invalid API key"}, status_code=401)
+                
+                body = await request.json()
+                tool_name = body.get("name")
+                arguments = body.get("arguments", {})
+                
+                if not tool_name:
+                    return JSONResponse({"error": "Missing tool name"}, status_code=400)
+                
+                result = await handle_call_tool(tool_name, arguments)
+                return JSONResponse({
+                    "result": [{"type": content.type, "text": content.text} for content in result]
+                })
+            except Exception as e:
+                logger.error(f"Error calling tool: {e}")
+                return JSONResponse({"error": str(e)}, status_code=500)
+        
+        app = Starlette(
+            routes=[
+                Route("/", health_check),
+                Route("/health", health_check),
+                Route("/tools", list_tools_endpoint, methods=["GET"]),
+                Route("/tools/call", call_tool_endpoint, methods=["POST"]),
+            ]
         )
+        
+        config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="info")
+        server_instance = uvicorn.Server(config)
+        await server_instance.serve()
+        
+    else:
+        # STDIO mode for local development
+        from mcp.server.stdio import stdio_server
+        
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                InitializationOptions(
+                    server_name="journey-funnel-mcp-fast",
+                    server_version="2.0.0",
+                    capabilities=server.get_capabilities(
+                        notification_options=NotificationOptions(),
+                        experimental_capabilities={},
+                    ),
+                ),
+            )
 
 if __name__ == "__main__":
     asyncio.run(main()) 

@@ -19,56 +19,117 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
     return mcpClient;
   }
 
-  // Check if we should use mock MCP (for development/testing)
-  // Use real MCP server if mcp_server_fast.py exists
-  const realServerExists = true; // We know mcp_server_fast.py exists
-  const useMockMCP = process.env.MCP_USE_MOCK === 'true' && !realServerExists;
-
-  if (useMockMCP) {
-    console.log('🧪 Using Mock MCP Client for development/testing');
-    const { createMockMCPClient } = await import('./mock-mcp-server');
-    mcpClient = createMockMCPClient();
-    mcpInitialized = true;
-    (global as any).manus = mcpClient;
-    return mcpClient;
-  }
-
   try {
     console.log('🚀 Starting server-side MCP client initialization...');
     
     // Dynamic import to avoid bundling issues
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
     const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+    const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
 
-    // Get configuration from environment variables or use defaults for mcp_server_fast.py
-    const serverConfig = {
-      command: config?.serverCommand || process.env.MCP_SERVER_COMMAND || 'python',
-      args: config?.serverArgs || process.env.MCP_SERVER_ARGS?.split(' ') || [
-        process.cwd() + '/mcp_server_fast.py'
-      ],
-      env: {
-        ...process.env,
-        ...(config?.apiKey && { MCP_API_KEY: config.apiKey }),
-        ...(config?.serverUrl && { MCP_SERVER_URL: config.serverUrl }),
-      } as Record<string, string>
-    };
+    // Determine if we should use HTTP transport (production) or StdIO (development)
+    const useHttp = process.env.NODE_ENV === 'production' || process.env.MCP_SERVER_URL;
+    
+    let transport;
+    if (useHttp) {
+      // Use HTTP transport for production
+      const serverUrl = config?.serverUrl || process.env.MCP_SERVER_URL;
+      const apiKey = config?.apiKey || process.env.MCP_API_KEY;
+      
+      if (!serverUrl) {
+        throw new Error('MCP_SERVER_URL is required for HTTP transport');
+      }
 
-    console.log('📋 MCP Configuration:', {
-      serverCommand: serverConfig.command,
-      serverArgs: serverConfig.args,
-      workingDirectory: process.cwd(),
-      hasApiKey: !!(config?.apiKey || process.env.MCP_API_KEY),
-      hasServerUrl: !!(config?.serverUrl || process.env.MCP_SERVER_URL),
-      nodeEnv: process.env.NODE_ENV,
-      openaiApiKey: process.env.OPENAI_API_KEY ? 'SET' : 'NOT_SET'
-    });
+      console.log('📡 Using HTTP transport for MCP');
+      
+      // Create a custom HTTP client for our deployed MCP server
+      const client = new Client(
+        {
+          name: "journey-funnel-server",
+          version: "1.0.0",
+        },
+        {
+          capabilities: {
+            tools: {},
+          },
+        }
+      );
 
-    // Create transport
-    const transport = new StdioClientTransport({
-      command: serverConfig.command,
-      args: serverConfig.args,
-      env: serverConfig.env,
-    });
+      // Custom HTTP implementation instead of using StreamableHTTPClientTransport
+      mcpClient = {
+        async callFunction(functionName: string, args: any): Promise<any> {
+          console.log(`🔄 HTTP MCP calling function: ${functionName}`);
+          
+          const response = await fetch(`${serverUrl}/tools/call`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey && { 'Authorization': `Bearer ${apiKey}` }),
+            },
+            body: JSON.stringify({
+              name: functionName,
+              arguments: args,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+          console.log(`✅ HTTP MCP function ${functionName} completed`);
+          
+          // Extract text content from result
+          if (result.result && Array.isArray(result.result) && result.result.length > 0) {
+            return { type: 'text', text: result.result[0].text };
+          }
+          return result;
+        },
+
+        isConnected(): boolean {
+          return true;
+        },
+
+        async disconnect(): Promise<void> {
+          console.log('🔌 HTTP MCP Client disconnected');
+        }
+      };
+      
+      mcpInitialized = true;
+      (global as any).manus = mcpClient;
+      console.log('✅ HTTP MCP Client successfully initialized');
+      return mcpClient;
+    } else {
+      // Use StdIO transport for development
+      const serverConfig = {
+        command: config?.serverCommand || process.env.MCP_SERVER_COMMAND || 'python',
+        args: config?.serverArgs || process.env.MCP_SERVER_ARGS?.split(' ') || [
+          process.cwd() + '/mcp_server_fast.py'
+        ],
+        env: {
+          ...process.env,
+          ...(config?.apiKey && { MCP_API_KEY: config.apiKey }),
+          ...(config?.serverUrl && { MCP_SERVER_URL: config.serverUrl }),
+        } as Record<string, string>
+      };
+
+      console.log('📋 MCP Configuration:', {
+        serverCommand: serverConfig.command,
+        serverArgs: serverConfig.args,
+        workingDirectory: process.cwd(),
+        hasApiKey: !!(config?.apiKey || process.env.MCP_API_KEY),
+        hasServerUrl: !!(config?.serverUrl || process.env.MCP_SERVER_URL),
+        nodeEnv: process.env.NODE_ENV,
+        openaiApiKey: process.env.OPENAI_API_KEY ? 'SET' : 'NOT_SET'
+      });
+
+      console.log('🖥️ Using StdIO transport for MCP');
+      transport = new StdioClientTransport({
+        command: serverConfig.command,
+        args: serverConfig.args,
+        env: serverConfig.env,
+      });
+    }
 
     // Create client
     const client = new Client(
@@ -142,7 +203,7 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
     console.log('✅ MCP Client successfully initialized and connected');
     return mcpClient;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ MCP Client initialization failed:', error);
     
     // More detailed error information
