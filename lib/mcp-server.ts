@@ -20,7 +20,7 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
   }
 
   // Check if we should use mock MCP (for development/testing)
-  // Force use of real MCP server if mcp_server_fast.py exists
+  // Use real MCP server if mcp_server_fast.py exists
   const realServerExists = true; // We know mcp_server_fast.py exists
   const useMockMCP = process.env.MCP_USE_MOCK === 'true' && !realServerExists;
 
@@ -56,8 +56,11 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
     console.log('📋 MCP Configuration:', {
       serverCommand: serverConfig.command,
       serverArgs: serverConfig.args,
+      workingDirectory: process.cwd(),
       hasApiKey: !!(config?.apiKey || process.env.MCP_API_KEY),
-      hasServerUrl: !!(config?.serverUrl || process.env.MCP_SERVER_URL)
+      hasServerUrl: !!(config?.serverUrl || process.env.MCP_SERVER_URL),
+      nodeEnv: process.env.NODE_ENV,
+      openaiApiKey: process.env.OPENAI_API_KEY ? 'SET' : 'NOT_SET'
     });
 
     // Create transport
@@ -81,7 +84,9 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
     );
 
     // Connect
+    console.log('🔗 Attempting to connect to MCP server...');
     await client.connect(transport);
+    console.log('✅ Successfully connected to MCP server');
 
     // Create wrapper with our interface
     mcpClient = {
@@ -139,19 +144,39 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
 
   } catch (error) {
     console.error('❌ MCP Client initialization failed:', error);
+    
+    // More detailed error information
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    
+    // Check if it's a spawn error (Python not found, file not executable, etc.)
+    if (error && typeof error === 'object' && 'code' in error) {
+      console.error('Error code:', error.code);
+      if (error.code === 'ENOENT') {
+        console.error('❌ Python executable not found or MCP server file not accessible');
+      }
+    }
+    
     console.log(`
 📖 MCP Setup Guide:
-1. Set your MCP server configuration in .env.local:
-   MCP_SERVER_COMMAND=python
-   MCP_SERVER_ARGS=-m your_mcp_server_module
-   MCP_SERVER_URL=your_server_url (if using HTTP)
-   MCP_API_KEY=your_api_key (if required)
+1. Your configuration should be:
+   Command: python
+   Args: ${process.cwd()}/mcp_server_fast.py
+   Working Dir: ${process.cwd()}
 
-2. Ensure your MCP server supports these tools:
-   - assessSteps
-   - manusFunnel
+2. Ensure Python and required packages are installed:
+   pip install openai mcp
 
-3. Your MCP server should be running and accessible
+3. Verify MCP server file is executable:
+   python mcp_server_fast.py
+
+4. Check environment variables in .env.local:
+   OPENAI_API_KEY=${process.env.OPENAI_API_KEY ? 'SET' : 'NOT_SET'}
+   MCP_SERVER_COMMAND=${process.env.MCP_SERVER_COMMAND || 'not set'}
+   MCP_SERVER_ARGS=${process.env.MCP_SERVER_ARGS || 'not set'}
     `);
     
     throw error;
