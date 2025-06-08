@@ -22,7 +22,7 @@ import UniqueCombinationTable from '@components/UniqueCombinationTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
 import FoggModelAnalysis from '@components/FoggModelAnalysis';
 import AnalysisTabsSection from '@components/AnalysisTabsSection';
-import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult } from '../types';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -125,6 +125,8 @@ const JourneyCalculator: React.FC = () => {
   const [isAssessing, setIsAssessing] = useState(false);
   const [isMCPAnalyzing, setIsMCPAnalyzing] = useState(false);
   const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
+  const [foggStepAssessments, setFoggStepAssessments] = useState<FoggStepAssessmentResult | null>(null);
+  const [isFoggStepAssessing, setIsFoggStepAssessing] = useState(false);
   const [numSamples, setNumSamples] = useState(20000); // Increased to 20000 per YAML patch - unlocking reorder upside
   const [hybridSeeding, setHybridSeeding] = useState(false); // NEW: Hybrid Fogg+ELM seeding
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
@@ -712,6 +714,49 @@ const JourneyCalculator: React.FC = () => {
     }
   }, [steps, simulationData, toast]);
 
+  const runFoggStepAssessment = useCallback(async () => {
+    setIsFoggStepAssessing(true);
+    
+    try {
+      if (!steps || steps.length === 0) {
+        throw new Error("Please add steps first");
+      }
+
+      console.log('Running Fogg Step Assessment...');
+      
+      const response = await fetch('/api/assessStepFogg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setFoggStepAssessments(data);
+        toast({
+          title: "Fogg Step Assessment Complete",
+          description: `Analyzed ${data.assessments.length} steps using Fogg Behavior Model (B = MAT)`
+        });
+      } else {
+        toast({
+          title: "Fogg Step Assessment Failed",
+          description: data.error || "Unknown error occurred",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Fogg Step Assessment error:', error);
+      toast({
+        title: "Fogg Step Assessment Failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsFoggStepAssessing(false);
+    }
+  }, [steps, toast]);
+
   const runMCPFunnelAnalysis = useCallback(async () => {
     try {
       setIsMCPAnalyzing(true);
@@ -1203,6 +1248,9 @@ const JourneyCalculator: React.FC = () => {
             optimalPositions={optimalPositions}
             llmCache={llmCache}
             setLlmCache={setLlmCache}
+            foggStepAssessments={foggStepAssessments}
+            isFoggStepAssessing={isFoggStepAssessing}
+            onRunFoggStepAssessment={runFoggStepAssessment}
           />
         )}
 

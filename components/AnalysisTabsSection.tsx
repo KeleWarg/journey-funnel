@@ -16,7 +16,9 @@ import {
   Step,
   MCPFunnelVariant,
   Question,
-  SimulationData
+  SimulationData,
+  FoggStepAssessmentResult,
+  FoggRecommendation
 } from '../types';
 
 interface AnalysisTabsSectionProps {
@@ -45,6 +47,11 @@ interface AnalysisTabsSectionProps {
   optimalPositions: Record<number, number>;
   llmCache: Record<string, string>;
   setLlmCache: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  
+  // Fogg Step Assessment props
+  foggStepAssessments: FoggStepAssessmentResult | null;
+  isFoggStepAssessing: boolean;
+  onRunFoggStepAssessment: () => void;
 }
 
 const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
@@ -65,7 +72,10 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
   simulationData,
   optimalPositions,
   llmCache,
-  setLlmCache
+  setLlmCache,
+  foggStepAssessments,
+  isFoggStepAssessing,
+  onRunFoggStepAssessment
 }) => {
   const [activeTab, setActiveTab] = useState('step_flow');
 
@@ -113,11 +123,12 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
               if (onRunFoggAnalysis) onRunFoggAnalysis();
               if (onRunEnhancedMCP) onRunEnhancedMCP();
               if (onRunAssessment) onRunAssessment();
+              if (onRunFoggStepAssessment) onRunFoggStepAssessment();
             }}
-            disabled={isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing}
+            disabled={isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing}
             className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-6 py-2 rounded-md"
           >
-            {(isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing) ? (
+            {(isMCPAnalyzing || isEnhancedMCPAnalyzing || isAssessing || isFoggStepAssessing) ? (
               <>
                 <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
                 Running Detailed Assessment...
@@ -245,6 +256,96 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                                 </div>
                               );
                             })}
+                            
+                            {/* Fogg Step Assessment */}
+                            {foggStepAssessments && foggStepAssessments.assessments && (
+                              (() => {
+                                const assessment = foggStepAssessments.assessments.find(a => a.stepIndex === stepIndex);
+                                if (!assessment) return null;
+                                
+                                return (
+                                  <div className="p-3 bg-blue-50 rounded border border-blue-200 mt-3">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <BrainIcon className="h-4 w-4 text-blue-600" />
+                                      <span className="font-medium text-sm text-blue-900">Fogg B=MAT Analysis</span>
+                                    </div>
+                                    
+                                    {/* Fogg Scores */}
+                                    <div className="grid grid-cols-3 gap-2 mb-2 text-xs">
+                                      <div className="text-center">
+                                        <div className="font-medium text-blue-700">M: {assessment.motivation_score.toFixed(1)}</div>
+                                        <div className="text-gray-600">Motivation</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="font-medium text-green-700">A: {assessment.ability_score.toFixed(1)}</div>
+                                        <div className="text-gray-600">Ability</div>
+                                      </div>
+                                      <div className="text-center">
+                                        <div className="font-medium text-purple-700">T: {assessment.trigger_score.toFixed(1)}</div>
+                                        <div className="text-gray-600">Trigger</div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Overall Score */}
+                                    <div className="text-center mb-2">
+                                      <div className="font-semibold text-sm">
+                                        Overall: {assessment.overall_score.toFixed(1)}/5
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Improvement Summary */}
+                                    <div className="text-xs text-blue-800 mb-2">
+                                      <strong>Key Insight:</strong> {assessment.improvement_summary}
+                                    </div>
+                                    
+                                    {/* Recommendations */}
+                                    {assessment.recommendations.length > 0 && (
+                                      <div className="text-xs space-y-2">
+                                        <div className="font-medium text-blue-800">Top Recommendations:</div>
+                                        {assessment.recommendations.slice(0, 2).map((rec, idx) => (
+                                          <div key={idx} className="bg-white p-2 rounded border border-blue-200">
+                                            <div className="flex items-center gap-1 mb-1">
+                                              <span className={`w-2 h-2 rounded-full ${
+                                                rec.type === 'content_rewrite' ? 'bg-green-500' :
+                                                rec.type === 'interaction_improvement' ? 'bg-blue-500' :
+                                                rec.type === 'support_content' ? 'bg-purple-500' : 'bg-orange-500'
+                                              }`}></span>
+                                              <span className="font-medium text-gray-900">{rec.title}</span>
+                                            </div>
+                                            <div className="text-gray-700 mb-1">{rec.description}</div>
+                                            
+                                            {/* Before/After for content rewrites */}
+                                            {rec.before && rec.after && (
+                                              <div className="space-y-1 bg-gray-50 p-2 rounded text-xs">
+                                                <div><span className="font-medium text-red-700">Before:</span> {rec.before}</div>
+                                                <div><span className="font-medium text-green-700">After:</span> {rec.after}</div>
+                                              </div>
+                                            )}
+                                            
+                                            {/* Implementation guidance */}
+                                            {rec.implementation && (
+                                              <div className="text-xs text-gray-600 mt-1">
+                                                <span className="font-medium">How to implement:</span> {rec.implementation}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()
+                            )}
+                            
+                            {/* Loading State for Fogg Assessment */}
+                            {isFoggStepAssessing && (
+                              <div className="p-3 bg-gray-100 rounded border border-gray-200 mt-3">
+                                <div className="flex items-center gap-2">
+                                  <Loader2Icon className="h-4 w-4 animate-spin text-gray-500" />
+                                  <span className="text-sm text-gray-600">Analyzing with Fogg Model...</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
 

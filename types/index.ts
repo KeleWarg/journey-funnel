@@ -30,6 +30,31 @@ export interface LLMAssessmentResult {
   uplift_total: number;
 }
 
+export interface FoggRecommendation {
+  type: 'content_rewrite' | 'interaction_improvement' | 'support_content' | 'ux_enhancement';
+  title: string;
+  description: string;
+  before?: string;
+  after?: string;
+  implementation?: string;
+}
+
+export interface FoggStepAssessment {
+  stepIndex: number;
+  motivation_score: number;
+  ability_score: number;
+  trigger_score: number;
+  overall_score: number;
+  barriers: string[];
+  recommendations: FoggRecommendation[];
+  improvement_summary: string;
+}
+
+export interface FoggStepAssessmentResult {
+  assessments: FoggStepAssessment[];
+  isMock?: boolean;
+}
+
 // MCP-specific interfaces
 export interface MCPStepAssessment {
   stepIndex: number;
