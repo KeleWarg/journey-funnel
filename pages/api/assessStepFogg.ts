@@ -39,10 +39,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { steps }: { steps: Step[] } = req.body;
+    const { steps, categoryTitle }: { steps: Step[]; categoryTitle?: string } = req.body;
 
     if (!steps || !Array.isArray(steps)) {
       res.status(400).json({ error: 'Steps array is required' });
+      return;
+    }
+
+    if (!categoryTitle || !categoryTitle.trim()) {
+      res.status(400).json({ error: 'Category title is required' });
       return;
     }
 
@@ -73,6 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }).join('\n\n');
 
     const prompt = `You are an expert in the Fogg Behavior Model (B = MAT) and conversion rate optimization. Analyze each step in this funnel and provide detailed recommendations with content rewrites.
+
+FUNNEL CATEGORY: ${categoryTitle.trim()}
 
 FUNNEL STEPS:
 ${stepDescriptions}
@@ -109,16 +116,17 @@ REQUIRED OUTPUT FORMAT (JSON):
 
 ANALYSIS GUIDELINES:
 1. **Score each dimension 1-5** where 5 = optimal
-2. **Identify specific barriers** for low scores
-3. **Provide actionable recommendations** with types:
+2. **Consider the funnel category context** when making recommendations
+3. **Identify specific barriers** for low scores
+4. **Provide actionable recommendations** with types:
    - content_rewrite: Better question wording, value props
    - interaction_improvement: Simplify interactions, reduce cognitive load  
    - support_content: Help text, privacy assurance, examples
    - ux_enhancement: Better CTAs, progress indicators, flow improvements
 
-4. **Include before/after examples** for content rewrites
-5. **Focus on implementation details** - how exactly to make the change
-6. **Consider question characteristics**:
+5. **Include before/after examples** for content rewrites
+6. **Focus on implementation details** - how exactly to make the change
+7. **Consider question characteristics**:
    - High invasiveness → Privacy/trust issues
    - High difficulty → Need help/examples
    - Multiple questions → Progressive disclosure

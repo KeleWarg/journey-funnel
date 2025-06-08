@@ -22,6 +22,8 @@ interface StepsEditorProps {
   onBoostElementsChange?: (stepIndex: number, elements: BoostElement[]) => void;
   onClassifyBoostElements?: (stepIndex: number, elements: BoostElement[]) => Promise<void>;
   isClassifyingBoosts?: boolean;
+  categoryTitle: string;
+  onCategoryTitleChange: (title: string) => void;
 }
 
 const StepsEditor: React.FC<StepsEditorProps> = ({
@@ -37,7 +39,9 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
   difficultyOptions,
   onBoostElementsChange,
   onClassifyBoostElements,
-  isClassifyingBoosts
+  isClassifyingBoosts,
+  categoryTitle,
+  onCategoryTitleChange
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm">
@@ -48,6 +52,23 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Category Title Input */}
+        <div className="space-y-2">
+          <Label htmlFor="category-title" className="text-sm font-medium text-gray-700">
+            Category Title <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="category-title"
+            value={categoryTitle}
+            onChange={(e) => onCategoryTitleChange(e.target.value)}
+            placeholder="e.g., Lead Generation, E-commerce Checkout, Newsletter Signup..."
+            className="border-gray-300 focus:border-blue-500"
+            required
+          />
+          <p className="text-xs text-gray-500">
+            This helps provide more targeted recommendations for your specific funnel type
+          </p>
+        </div>
         
         {steps.map((step, stepIndex) => (
           <Card key={stepIndex} className="border border-gray-300 bg-white">

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
-import { BarChart3Icon, BrainIcon, SparklesIcon, Loader2Icon, ListIcon } from 'lucide-react';
+import { BarChart3Icon, BrainIcon, SparklesIcon, Loader2Icon, ListIcon, InfoIcon } from 'lucide-react';
 import MCPComparisonTable from './MCPComparisonTable';
 import EnhancedComparisonTable from './EnhancedComparisonTable';
 import UniqueCombinationTable from './UniqueCombinationTable';
@@ -155,7 +155,15 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
           <h4 className="text-lg font-semibold text-gray-800 mb-3">🎯 Overall Conversion Rates</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white p-3 rounded-lg shadow-sm">
-              <div className="text-sm text-gray-600">Overall Predicted CR</div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>Model Baseline CR</span>
+                <div className="group relative">
+                  <InfoIcon className="h-4 w-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                    This is not the optimized conversion rate but the rate our model will use in its evaluation
+                  </div>
+                </div>
+              </div>
               <div className="text-2xl font-bold text-green-700">
                 {(simulationData.CR_total * 100).toFixed(2)}%
               </div>
@@ -210,7 +218,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                         Observed CR
                       </th>
                       <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
-                        Predicted CR
+                        Model Baseline CR
                       </th>
                       <th className="border-2 border-gray-800 px-4 py-3 text-left text-sm font-semibold text-gray-900">
                         LLM Improvement
@@ -293,7 +301,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                               {(step.observedCR * 100).toFixed(2)}%
                             </td>
 
-                            {/* Predicted CR */}
+                            {/* Model Baseline CR */}
                             <td className="border-2 border-gray-800 px-4 py-3 text-center text-sm font-mono font-semibold text-green-700">
                               {simulationData.predictedSteps[stepIndex] 
                                 ? (simulationData.predictedSteps[stepIndex].CR_s * 100).toFixed(2) + '%'

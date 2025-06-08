@@ -127,6 +127,7 @@ const JourneyCalculator: React.FC = () => {
   const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
   const [foggStepAssessments, setFoggStepAssessments] = useState<FoggStepAssessmentResult | null>(null);
   const [isFoggStepAssessing, setIsFoggStepAssessing] = useState(false);
+  const [categoryTitle, setCategoryTitle] = useState('');
   const [numSamples, setNumSamples] = useState(20000); // Increased to 20000 per YAML patch - unlocking reorder upside
   const [hybridSeeding, setHybridSeeding] = useState(false); // NEW: Hybrid Fogg+ELM seeding
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
@@ -722,12 +723,16 @@ const JourneyCalculator: React.FC = () => {
         throw new Error("Please add steps first");
       }
 
+      if (!categoryTitle.trim()) {
+        throw new Error("Please enter a category title first");
+      }
+
       console.log('Running Fogg Step Assessment...');
       
       const response = await fetch('/api/assessStepFogg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ steps })
+        body: JSON.stringify({ steps, categoryTitle: categoryTitle.trim() })
       });
 
       const data = await response.json();
@@ -755,7 +760,7 @@ const JourneyCalculator: React.FC = () => {
     } finally {
       setIsFoggStepAssessing(false);
     }
-  }, [steps, toast]);
+  }, [steps, categoryTitle, toast]);
 
   const runMCPFunnelAnalysis = useCallback(async () => {
     try {
@@ -1197,6 +1202,8 @@ const JourneyCalculator: React.FC = () => {
           onBoostElementsChange={handleBoostElementsChange}
           onClassifyBoostElements={handleClassifyBoostElements}
           isClassifyingBoosts={isClassifyingBoosts}
+          categoryTitle={categoryTitle}
+          onCategoryTitleChange={setCategoryTitle}
         />
 
         {/* Complete Analysis Controls */}
