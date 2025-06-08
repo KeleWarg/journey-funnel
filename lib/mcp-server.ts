@@ -21,6 +21,13 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
 
   try {
     console.log('🚀 Starting server-side MCP client initialization...');
+    console.log('🔍 Environment check:', {
+      NODE_ENV: process.env.NODE_ENV,
+      MCP_SERVER_URL: process.env.MCP_SERVER_URL ? 'SET' : 'NOT_SET',
+      MCP_API_KEY: process.env.MCP_API_KEY ? 'SET' : 'NOT_SET',
+      configServerUrl: config?.serverUrl ? 'SET' : 'NOT_SET',
+      configApiKey: config?.apiKey ? 'SET' : 'NOT_SET'
+    });
     
     // Dynamic import to avoid bundling issues
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
@@ -29,6 +36,7 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
 
     // Determine if we should use HTTP transport (production) or StdIO (development)
     const useHttp = process.env.NODE_ENV === 'production' || process.env.MCP_SERVER_URL;
+    console.log('🔗 Transport decision:', { useHttp, reason: useHttp ? 'Production or MCP_SERVER_URL set' : 'Development mode' });
     
     let transport;
     if (useHttp) {
@@ -37,10 +45,13 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
       const apiKey = config?.apiKey || process.env.MCP_API_KEY;
       
       if (!serverUrl) {
+        console.error('❌ MCP_SERVER_URL is missing for HTTP transport');
         throw new Error('MCP_SERVER_URL is required for HTTP transport');
       }
 
       console.log('📡 Using HTTP transport for MCP');
+      console.log('🌐 Server URL:', serverUrl);
+      console.log('🔑 API Key:', apiKey ? 'SET' : 'NOT_SET');
       
       // Create a custom HTTP client for our deployed MCP server
       const client = new Client(
@@ -56,35 +67,45 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
       );
 
       // Custom HTTP implementation instead of using StreamableHTTPClientTransport
-      mcpClient = {
-        async callFunction(functionName: string, args: any): Promise<any> {
-          console.log(`🔄 HTTP MCP calling function: ${functionName}`);
-          
-          const response = await fetch(`${serverUrl}/tools/call`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(apiKey && { 'Authorization': `Bearer ${apiKey}` }),
-            },
-            body: JSON.stringify({
-              name: functionName,
-              arguments: args,
-            }),
-          });
+              mcpClient = {
+          async callFunction(functionName: string, args: any): Promise<any> {
+            console.log(`🔄 HTTP MCP calling function: ${functionName}`);
+            console.log(`🌐 Calling URL: ${serverUrl}/tools/call`);
+            
+            try {
+              const response = await fetch(`${serverUrl}/tools/call`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(apiKey && { 'Authorization': `Bearer ${apiKey}` }),
+                },
+                body: JSON.stringify({
+                  name: functionName,
+                  arguments: args,
+                }),
+              });
 
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
+              console.log(`📡 HTTP Response status: ${response.status}`);
 
-          const result = await response.json();
-          console.log(`✅ HTTP MCP function ${functionName} completed`);
-          
-          // Extract text content from result
-          if (result.result && Array.isArray(result.result) && result.result.length > 0) {
-            return { type: 'text', text: result.result[0].text };
-          }
-          return result;
-        },
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`❌ HTTP Error: ${response.status} ${response.statusText}`, errorText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+              }
+
+              const result = await response.json();
+              console.log(`✅ HTTP MCP function ${functionName} completed`);
+              
+              // Extract text content from result
+              if (result.result && Array.isArray(result.result) && result.result.length > 0) {
+                return { type: 'text', text: result.result[0].text };
+              }
+              return result;
+            } catch (error) {
+              console.error(`❌ HTTP MCP call failed:`, error);
+              throw error;
+            }
+          },
 
         isConnected(): boolean {
           return true;
