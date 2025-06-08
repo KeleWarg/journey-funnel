@@ -16,7 +16,8 @@ const nextConfig = {
     // Disable ESLint during build
     ignoreDuringBuilds: true,
   },
-  webpack(config) {
+  webpack: (config, { isServer, dev }) => {
+    // Set up path aliases
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       "@components": path.join(__dirname, "components"),
@@ -24,13 +25,12 @@ const nextConfig = {
       "@lib":        path.join(__dirname, "lib"),
       "@styles":     path.join(__dirname, "styles"),
     };
+    
     config.resolve.extensionAlias = {
       '.js': ['.js', '.ts', '.tsx'],
       '.jsx': ['.jsx', '.tsx'],
     };
-    return config;
-  },
-  webpack: (config, { isServer, dev }) => {
+
     // Handle node modules that aren't compatible with webpack
     if (!isServer) {
       config.resolve.fallback = {
@@ -50,6 +50,13 @@ const nextConfig = {
         os: false,
         path: false,
       };
+      
+      // Add externals for client-side
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@modelcontextprotocol/sdk': 'commonjs @modelcontextprotocol/sdk',
+        'cross-spawn': 'commonjs cross-spawn',
+      });
     }
     
     // Improve cache reliability in development
@@ -57,15 +64,6 @@ const nextConfig = {
       config.cache = {
         type: 'memory',
       };
-    }
-    
-    // Add externals for server-side only modules
-    if (!isServer) {
-      config.externals = config.externals || [];
-      config.externals.push({
-        '@modelcontextprotocol/sdk': 'commonjs @modelcontextprotocol/sdk',
-        'cross-spawn': 'commonjs cross-spawn',
-      });
     }
     
     return config;
