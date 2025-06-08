@@ -886,7 +886,7 @@ const JourneyCalculator: React.FC = () => {
     step && typeof step.observedCR === 'number' && step.observedCR !== null && step.observedCR !== undefined
   );
 
-  // Add specific Fogg analysis function
+  // Add specific Fogg analysis function per YAML spec 3.3_fogg_order_logic
   const runFoggAnalysis = useCallback(async () => {
     try {
       setIsMCPAnalyzing(true);
@@ -895,59 +895,66 @@ const JourneyCalculator: React.FC = () => {
         throw new Error("Please configure funnel steps first");
       }
 
-      // Call MCP manusFunnel orchestrator function with timeout (same as runMCPFunnelAnalysis)
-      let data;
-      try {
-        console.log('Running Fogg-specific MCP analysis...');
-        
-        // Create a timeout promise (45 seconds)
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Fogg analysis timeout')), 45000)
-        );
-        
-        const fetchPromise = fetch('/api/manusFunnel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            steps: steps,
-            frameworks: ['Fogg'] // Only run Fogg framework
-          })
-        });
-        
-        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          
-          // Special handling for MCP not available
-          if (errorData.error === 'MCP client not available') {
-            throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
-          }
-          
-          throw new Error(errorData.error || errorData.details || 'Fogg analysis failed');
-        }
-
-        data = await response.json();
-        console.log('Fogg analysis successful');
-        
-      } catch (mcpError) {
-        console.warn('Fogg analysis failed:', mcpError);
-        throw new Error(`Fogg analysis failed: ${mcpError instanceof Error ? mcpError.message : 'Unknown error'}`);
-      }
+      console.log('🧠 Running Fogg Behavior Model analysis...');
       
-      setMcpFunnelResult(data);
+      // Create a timeout promise (30 seconds for focused analysis)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Fogg analysis timeout')), 30000)
+      );
+      
+      // Call the dedicated Fogg analysis API that implements the YAML spec
+      const fetchPromise = fetch('/api/foggAnalysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          steps: steps,
+          constants: {
+            c1, c2, c3, w_c, w_f, w_E, w_N,
+            E, N_importance: N, source, U0
+          } // Include current constants for calculation API calls
+        })
+      });
+      
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
 
-      // Find the Fogg-related variant (could be 'Fogg' or 'Fogg-BM')
-      const foggVariant = data.variants?.find((v: any) => v.framework === 'Fogg-BM' || v.framework === 'Fogg');
-      const upliftText = foggVariant ? `${foggVariant.uplift_pp.toFixed(1)}pp` : '0.0pp';
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || errorData.details || 'Fogg analysis failed');
+      }
+
+      const foggResult = await response.json();
+      console.log('✅ Fogg analysis successful:', foggResult);
+      
+      // Create MCP-compatible result structure for existing components
+      const foggVariant = {
+        framework: foggResult.framework,
+        step_order: foggResult.step_order,
+        CR_total: foggResult.CR_total,
+        uplift_pp: foggResult.uplift_pp,
+        fogg_metrics: foggResult.fogg_metrics,
+        suggestions: [] // Fogg is about ordering, not copy rewriting
+      };
+      
+      const mcpCompatibleResult = {
+        baselineCR: foggResult.baseline_CR_total,
+        variants: [foggVariant],
+        metadata: {
+          totalVariants: 1,
+          topPerformer: foggVariant,
+          averageUplift: foggResult.uplift_pp,
+          frameworksAnalyzed: ['Fogg-BM']
+        }
+      };
+      
+      setMcpFunnelResult(mcpCompatibleResult);
 
       toast({
         title: "Fogg Analysis Complete",
-        description: `Fogg Behavior Model analysis complete. ${upliftText} improvement identified.`
+        description: `Fogg Behavior Model analysis complete. ${foggResult.uplift_pp.toFixed(1)}pp improvement identified.`
       });
 
     } catch (error) {
-      console.error('Fogg Analysis error:', error);
+      console.error('❌ Fogg Analysis error:', error);
       toast({
         title: "Fogg Analysis Failed",
         description: error instanceof Error ? error.message : "Please try again.",
@@ -956,7 +963,7 @@ const JourneyCalculator: React.FC = () => {
     } finally {
       setIsMCPAnalyzing(false);
     }
-  }, [steps, toast]);
+  }, [steps, toast, buildPayload]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1115,19 +1122,20 @@ const JourneyCalculator: React.FC = () => {
             baselineCR={simulationData?.CR_total || 0}
           />
         )}
-
         {/* Export & Share Controls */}
         <ExportShareControls
           simulationData={simulationData}
           backsolveResult={backsolveResult}
           optimalPositions={optimalPositions}
+          buildPayload={buildPayload}
+          llmCache={llmCache}
         />
 
         {/* Data Visualization */}
         {simulationData && (
           <DataVisualization
-            data={simulationData}
-            optimizeData={optimizeResult}
+            simulationData={simulationData}
+            optimizeResult={optimizeResult}
           />
         )}
 

@@ -134,6 +134,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // 4. Sort variants by performance
     variantResults.sort((a, b) => b.model_CR - a.model_CR);
 
+    // **NEW: Group variants by unique step_order and keep only the best for each**
+    const uniqueCombinationsMap = new Map<string, any>();
+    
+    variantResults.forEach(variant => {
+      const orderKey = JSON.stringify(variant.step_order);
+      
+      if (!uniqueCombinationsMap.has(orderKey) || 
+          variant.model_CR > uniqueCombinationsMap.get(orderKey).best_CR_total) {
+        
+        const existingEntry = uniqueCombinationsMap.get(orderKey);
+        const frameworks = existingEntry ? 
+          [...existingEntry.frameworks, variant.framework] : 
+          [variant.framework];
+        
+        uniqueCombinationsMap.set(orderKey, {
+          step_order: variant.step_order,
+          best_CR_total: variant.model_CR,
+          uplift_pp: variant.uplift_pp,
+          frameworks: frameworks,
+          suggestions: variant.suggestions,
+          algorithm: variant.algorithm,
+          samples_evaluated: variant.samples_evaluated
+        });
+      } else if (variant.model_CR === uniqueCombinationsMap.get(orderKey).best_CR_total) {
+        // If tied, add framework to the list
+        const entry = uniqueCombinationsMap.get(orderKey);
+        if (!entry.frameworks.includes(variant.framework)) {
+          entry.frameworks.push(variant.framework);
+        }
+      }
+    });
+
+    // Convert map to array and sort by best_CR_total descending
+    const uniqueCombinations = Array.from(uniqueCombinationsMap.values())
+      .sort((a, b) => b.best_CR_total - a.best_CR_total);
+
     // 5. Calculate overall ceiling analysis
     const bestVariantCR = Math.max(...variantResults.map(v => v.model_CR));
     const ceilingAnalysis = {
@@ -150,6 +186,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`- Best Variant CR: ${(bestVariantCR * 100).toFixed(2)}% (${variantResults[0]?.framework})`);
     console.log(`- Maximum Gain: ${ceilingAnalysis.potential_gain_pp.toFixed(2)}pp`);
     console.log(`- Optimization Algorithm: ${optimizeResult.algorithm}`);
+    console.log(`- Unique Combinations Found: ${uniqueCombinations.length}`);
 
     const response = {
       success: true,
@@ -162,7 +199,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       ceiling_analysis: ceilingAnalysis,
       optimization_results: optimizeResult,
-      variant_results: variantResults,
+      // **REMOVED: variant_results array**
+      unique_combinations: uniqueCombinations,
+      baseline_CR_total: baselineCR,
       llm_assessments_applied: llmAssessments.length > 0,
       mcp_integration: {
         status: mcpClient ? 'connected' : 'mock_fallback',

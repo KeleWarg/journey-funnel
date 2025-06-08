@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 import { BarChart3Icon, BrainIcon, SparklesIcon } from 'lucide-react';
 import MCPComparisonTable from './MCPComparisonTable';
 import EnhancedComparisonTable from './EnhancedComparisonTable';
+import { UniqueCombinationTable } from './UniqueCombinationTable';
 import FoggModelAnalysis from './FoggModelAnalysis';
 import FogMetricsTable from './FogMetricsTable';
 import FoggOrderResult from './FoggOrderResult';
@@ -119,12 +120,19 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
               {enhancedMcpResult && (
                 <div className="mt-6">
                   <h4 className="text-md font-semibold mb-3">Enhanced Framework Analysis</h4>
-                  <EnhancedComparisonTable
-                    variantResults={enhancedMcpResult.variant_results}
-                    ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
-                    isLoading={isEnhancedMCPAnalyzing}
-                    onApplyVariant={onApplyEnhancedVariant || (() => {})}
-                  />
+                  {enhancedMcpResult.unique_combinations ? (
+                    <UniqueCombinationTable
+                      combinations={enhancedMcpResult.unique_combinations}
+                      baselineCR={enhancedMcpResult.baseline_CR_total}
+                    />
+                  ) : (
+                    <EnhancedComparisonTable
+                      variantResults={enhancedMcpResult.variant_results}
+                      ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
+                      isLoading={isEnhancedMCPAnalyzing}
+                      onApplyVariant={onApplyEnhancedVariant || (() => {})}
+                    />
+                  )}
                 </div>
               )}
               

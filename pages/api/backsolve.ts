@@ -24,6 +24,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       observed_CR_s   // Array of length N: actual observed continue-rates per step
     } = data;
 
+    // Extract observed_CR_s from steps if not provided directly
+    const observedCRs = observed_CR_s || steps.map((step: any) => step.observedCR);
+
     const N = steps.length;
 
     // 2. Constants per YAML specification
@@ -163,7 +166,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // 4c. Compute MSE against observed_CR_s
         let mse = 0;
         for (let i = 0; i < N; i++) {
-          const diff = predictedCRs[i] - observed_CR_s[i];
+          const diff = predictedCRs[i] - observedCRs[i];
           mse += diff * diff;
         }
         mse /= N;
@@ -175,7 +178,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           
           // Calculate overall CRs per YAML specification
           const overall_predicted_CR_best = bestPredictedCRs.reduce((product: number, cr: number) => product * cr, 1);
-          const overall_observed_CR = observed_CR_s.reduce((product: number, cr: number) => product * cr, 1);
+          const overall_observed_CR = observedCRs.reduce((product: number, cr: number) => product * cr, 1);
           
           bestParams = { 
             best_k: kTry, 
@@ -197,7 +200,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`Backsolve search completed:`);
     console.log(`- Searched ${searchCount} combinations (${kValues.length} k × ${gammaValues.length} γ_exit)`);
-    console.log(`- Target observed CR: ${observed_CR_s}`);
+    console.log(`- Target observed CR: ${observedCRs}`);
     console.log(`- Minimum MSE found: ${lowestMSE}`);
     console.log(`- Best params: ${bestParams ? JSON.stringify(bestParams) : 'null'}`);
 
