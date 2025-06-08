@@ -132,7 +132,9 @@ ANALYSIS GUIDELINES:
    - Multiple questions → Progressive disclosure
    - Unclear purpose → Add value explanation
 
-Provide comprehensive, actionable recommendations that directly improve conversion rates.`;
+Provide comprehensive, actionable recommendations that directly improve conversion rates.
+
+IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text before or after the JSON.`;
 
     // Call OpenAI
     const response = await openai.chat.completions.create({
@@ -159,15 +161,37 @@ Provide comprehensive, actionable recommendations that directly improve conversi
     // Parse JSON response
     let result;
     try {
-      // Clean the response text
-      const cleanedText = aiResponse.trim()
-        .replace(/^```json\s*/, '')
-        .replace(/\s*```$/, '');
+      // Clean the response text and extract JSON
+      let cleanedText = aiResponse.trim();
+      
+      // Remove markdown code blocks if present
+      cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      
+      // Try to find JSON object boundaries
+      const jsonStart = cleanedText.indexOf('{');
+      const jsonEnd = cleanedText.lastIndexOf('}');
+      
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        cleanedText = cleanedText.substring(jsonStart, jsonEnd + 1);
+      }
+      
       result = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error('Failed to parse OpenAI response:', parseError);
       console.log('Raw response:', aiResponse);
-      throw new Error('Invalid JSON response from OpenAI');
+      
+      // Try alternative parsing - look for assessments array
+      try {
+        const assessmentsMatch = aiResponse.match(/"assessments"\s*:\s*\[[\s\S]*?\]\s*}/);
+        if (assessmentsMatch) {
+          const jsonStr = `{${assessmentsMatch[0]}`;
+          result = JSON.parse(jsonStr);
+        } else {
+          throw new Error('Could not extract valid JSON');
+        }
+      } catch (fallbackError) {
+        throw new Error('Invalid JSON response from OpenAI');
+      }
     }
 
     // Validate response structure
