@@ -149,14 +149,10 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="step_flow" className="flex items-center gap-2">
               <ListIcon className="h-4 w-4" />
               Step Flow
-            </TabsTrigger>
-            <TabsTrigger value="fogg_model" className="flex items-center gap-2">
-              <BrainIcon className="h-4 w-4" />
-              Fogg Model
             </TabsTrigger>
             <TabsTrigger value="framework_analysis" className="flex items-center gap-2">
               <BarChart3Icon className="h-4 w-4" />
@@ -170,7 +166,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
 
           <TabsContent value="step_flow">
             {/* Step Flow - Table moved from ResultsTable component */}
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Step-by-Step Analysis</h3>
                 <p className="text-gray-600">
@@ -280,49 +276,88 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                   </tbody>
                 </table>
               </div>
-            </div>
-          </TabsContent>
 
-          <TabsContent value="fogg_model">
-            {/* Fogg Model - FogMetricsTable + FoggOrderResult per YAML spec */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Fogg Behavior Model (B = MAT)</h3>
-                <p className="text-gray-600">
-                  Analyze steps using Motivation × Ability × Trigger framework for optimal conversion flow.
-                </p>
-              </div>
-
-              {foggVariant ? (
-                <div className="space-y-6">
-                  {/* Step Metrics Table */}
-                  {(foggVariant as any).fogg_metrics && (
-                    <div>
-                      <h4 className="text-md font-semibold mb-3">Step-by-Step Fogg Metrics</h4>
-                      <FogMetricsTable rows={(foggVariant as any).fogg_metrics} />
-                    </div>
-                  )}
-                  
-                  {/* Recommended Order Results */}
-                  <div>
-                    <h4 className="text-md font-semibold mb-3">Fogg-Optimized Step Order</h4>
-                    <FoggOrderResult
-                      order={foggVariant.step_order}
-                      CR_total={foggVariant.CR_total}
-                      uplift_pp={foggVariant.uplift_pp}
-                      onApplyOrder={onApplyFoggOrder}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <BrainIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p className="mb-2">No Fogg Model analysis available</p>
-                  <p className="text-sm text-gray-500">
-                    Use the "Run Detailed Assessment" button above to analyze your funnel with the Fogg Behavior Model (B = MAT)
+              {/* Fogg Model Analysis - Moved from separate tab */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <BrainIcon className="h-5 w-5" />
+                    Fogg Behavior Model (B = MAT)
+                  </h3>
+                  <p className="text-gray-600">
+                    Analyze steps using Motivation × Ability × Trigger framework for optimal conversion flow.
                   </p>
                 </div>
-              )}
+
+                {foggVariant ? (
+                  <div className="space-y-6">
+                    {/* Step Metrics Table */}
+                    {(foggVariant as any).fogg_metrics && (
+                      <div>
+                        <h4 className="text-md font-semibold mb-3">Step-by-Step Fogg Metrics</h4>
+                        <FogMetricsTable rows={(foggVariant as any).fogg_metrics} />
+                      </div>
+                    )}
+                    
+                    {/* Recommended Order Results */}
+                    <div>
+                      <h4 className="text-md font-semibold mb-3">Fogg-Optimized Step Order</h4>
+                      <FoggOrderResult
+                        order={foggVariant.step_order}
+                        CR_total={foggVariant.CR_total}
+                        uplift_pp={foggVariant.uplift_pp}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <BrainIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="mb-2">No Fogg Model analysis available</p>
+                    <p className="text-sm text-gray-500">
+                      Use the "Run Detailed Assessment" button above to analyze your funnel with the Fogg Behavior Model (B = MAT)
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Enhanced Framework Analysis - Moved from Framework Analysis tab */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                    <BarChart3Icon className="h-5 w-5" />
+                    Enhanced Framework Analysis
+                  </h3>
+                  <p className="text-gray-600">
+                    Advanced analysis with unique step combinations and framework variant comparisons.
+                  </p>
+                </div>
+
+                {enhancedMcpResult ? (
+                  <div>
+                    {enhancedMcpResult.unique_combinations ? (
+                      <UniqueCombinationTable
+                        combinations={enhancedMcpResult.unique_combinations}
+                        baselineCR={enhancedMcpResult.baseline_CR_total}
+                      />
+                    ) : (
+                      <EnhancedComparisonTable
+                        variantResults={enhancedMcpResult.variant_results}
+                        ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
+                        isLoading={isEnhancedMCPAnalyzing}
+                        onApplyVariant={onApplyEnhancedVariant || (() => {})}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="mb-2">No Enhanced Framework analysis available</p>
+                    <p className="text-sm text-gray-500">
+                      Use the "Run Detailed Assessment" button above to see enhanced framework variant comparisons
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
 
@@ -343,27 +378,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                 isLoading={isMCPAnalyzing}
               />
               
-              {/* Enhanced Framework Variant Analysis */}
-              {enhancedMcpResult && (
-                <div className="mt-6">
-                  <h4 className="text-md font-semibold mb-3">Enhanced Framework Analysis</h4>
-                  {enhancedMcpResult.unique_combinations ? (
-                    <UniqueCombinationTable
-                      combinations={enhancedMcpResult.unique_combinations}
-                      baselineCR={enhancedMcpResult.baseline_CR_total}
-                    />
-                  ) : (
-                    <EnhancedComparisonTable
-                      variantResults={enhancedMcpResult.variant_results}
-                      ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
-                      isLoading={isEnhancedMCPAnalyzing}
-                      onApplyVariant={onApplyEnhancedVariant || (() => {})}
-                    />
-                  )}
-                </div>
-              )}
-              
-              {!mcpFunnelResult && !enhancedMcpResult && !isMCPAnalyzing && !isEnhancedMCPAnalyzing && (
+              {!mcpFunnelResult && !isMCPAnalyzing && (
                 <div className="text-center py-8 text-gray-500">
                   <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                   <p>Run detailed assessment to see framework comparison results</p>
