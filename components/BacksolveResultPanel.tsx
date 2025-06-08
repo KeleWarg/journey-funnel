@@ -1,22 +1,15 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@components/ui/card';
-import { Button } from '@components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@components/ui/collapsible';
 import { ChevronDownIcon } from 'lucide-react';
 import { BacksolveResult } from '../types';
 
 interface BacksolveResultPanelProps {
   backsolveResult: BacksolveResult;
-  onUpdateSimulation: () => void;
-  onRestoreDefault: () => void;
-  backupOverrides: Record<string, number> | null;
 }
 
 const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
-  backsolveResult,
-  onUpdateSimulation,
-  onRestoreDefault,
-  backupOverrides
+  backsolveResult
 }) => {
   return (
     <Card className="border border-purple-200 shadow-sm bg-purple-50">
@@ -25,7 +18,7 @@ const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
           <CardHeader className="cursor-pointer hover:bg-purple-100 transition-colors">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold text-purple-900">
-                Back-Solve Result
+                ✅ Back-Solve Results
               </CardTitle>
               <ChevronDownIcon className="h-5 w-5 text-purple-600" />
             </div>
@@ -59,30 +52,12 @@ const BacksolveResultPanel: React.FC<BacksolveResultPanelProps> = ({
               </pre>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-3">
-              <Button
-                onClick={onUpdateSimulation}
-                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
-              >
-                Update Simulation
-              </Button>
-              
-              {backupOverrides && (
-                <Button
-                  onClick={onRestoreDefault}
-                  variant="outline"
-                  className="text-red-600 border-red-300 hover:bg-red-50"
-                >
-                  Restore to Default
-                </Button>
-              )}
+            {/* Info Text */}
+            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+              <p className="text-sm text-green-800">
+                ✅ <strong>Parameters Applied Automatically:</strong> These optimized parameters have been automatically applied to your simulation model for improved accuracy.
+              </p>
             </div>
-
-            {/* Help Text */}
-            <p className="text-xs text-gray-600">
-              Update Simulation applies these constants and runs a new simulation, or restore to return to default values.
-            </p>
 
           </CardContent>
         </CollapsibleContent>

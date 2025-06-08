@@ -203,22 +203,14 @@ export interface CurrentConstantsSectionProps {
 }
 
 export interface BacksolveResultPanelProps {
-  backsolveResult: {
-    bestParams: Record<string, number>;
-    predicted_CR_total: number;
-  };
-  onApplyBacksolve: () => void;
-  onUndoBacksolve: () => void;
-  backupOverrides: Record<string, number> | null;
+  backsolveResult: BacksolveResult;
 }
 
 export interface SimulationBacksolveControlsProps {
-  onRunSimulation: () => void;
-  onRunBacksolve: () => void;
-  isSimulating: boolean;
-  isBacksolving: boolean;
-  canRunSimulation: boolean;
-  canRunBacksolve: boolean;
+  onRunCompleteAnalysis: () => void;
+  isRunningComplete: boolean;
+  loadingMessage: string;
+  canRunCompleteAnalysis: boolean;
 }
 
 export interface APIResponse<T> {

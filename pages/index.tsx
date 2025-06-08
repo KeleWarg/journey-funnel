@@ -12,7 +12,6 @@ import StepsEditor from '@components/StepsEditor';
 import SimulationBacksolveControls from '@components/SimulationBacksolveControls';
 import BacksolveResultPanel from '@components/BacksolveResultPanel';
 import OptimizeControls from '@components/OptimizeControls';
-import ResultsTable from '@components/ResultsTable';
 import ExportShareControls from '@components/ExportShareControls';
 import DataVisualization from '@components/DataVisualization';
 import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
@@ -120,8 +119,8 @@ const JourneyCalculator: React.FC = () => {
   const [llmAssessmentResult, setLlmAssessmentResult] = useState<LLMAssessmentResult | null>(null);
   const [mcpFunnelResult, setMcpFunnelResult] = useState<MCPFunnelResult | null>(null);
   const [enhancedMcpResult, setEnhancedMcpResult] = useState<any>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [isBacksolving, setIsBacksolving] = useState(false);
+  const [isRunningComplete, setIsRunningComplete] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isAssessing, setIsAssessing] = useState(false);
   const [isMCPAnalyzing, setIsMCPAnalyzing] = useState(false);
@@ -275,7 +274,8 @@ const JourneyCalculator: React.FC = () => {
         } catch {
           errorData = { error: `HTTP ${response.status}: ${errorText || 'Unknown error'}` };
         }
-        throw new Error(errorData.error || errorData.details || 'Classification failed');
+        const errorMessage = errorData?.error || errorData?.details || 'Classification failed';
+        throw new Error(String(errorMessage));
       }
       
       const data = await response.json();
@@ -321,8 +321,9 @@ const JourneyCalculator: React.FC = () => {
     }
   };
 
-  // Build payload for API calls
-  const buildPayload = useCallback(() => {
+  // Helper function to build payload with optional parameter overrides
+  const buildPayloadWithParams = useCallback((paramOverrides?: any) => {
+    const currentOverrides = paramOverrides || overrides;
     return {
       journeyType,
       E,
@@ -331,19 +332,23 @@ const JourneyCalculator: React.FC = () => {
       steps,
       c1, c2, c3, w_c, w_f, w_E, w_N,
       U0,
-      k_override: overrides.k,
-      gamma_exit_override: overrides.gamma_exit,
-      epsilon_override: overrides.epsilon,
+      k_override: currentOverrides.k,
+      gamma_exit_override: currentOverrides.gamma_exit,
+      epsilon_override: currentOverrides.epsilon,
       llmAssessments: llmAssessmentResult?.assessments || null,
       apply_llm_uplift: true
     };
   }, [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, overrides, llmAssessmentResult]);
 
-  // API call functions
-  const runSimulation = useCallback(async () => {
+  // Build payload for API calls
+  const buildPayload = useCallback(() => {
+    return buildPayloadWithParams();
+  }, [buildPayloadWithParams]);
+
+  // API call functions will be defined after individual functions
+
+  const runSimulationInternalWithParams = useCallback(async (paramOverrides?: any) => {
     try {
-      setIsSimulating(true);
-      
       // Enhanced validation
       if (!steps || steps.length === 0) {
         throw new Error("At least one step is required");
@@ -369,7 +374,7 @@ const JourneyCalculator: React.FC = () => {
         }
       }
       
-      const payload = buildPayload();
+      const payload = buildPayloadWithParams(paramOverrides);
       console.log("Sending payload:", payload); // Debug log
       
       const response = await fetch('/api/calculate', {
@@ -378,9 +383,26 @@ const JourneyCalculator: React.FC = () => {
         body: JSON.stringify(payload)
       });
       
+      console.log('Received response:', response);
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Simulation failed');
+        console.error('API request failed:', response.status, response.statusText);
+        let errorMessage = 'Simulation failed';
+        try {
+          const errorData = await response.json();
+          console.error('Error data from API:', errorData);
+          errorMessage = errorData?.error || errorData?.details || `HTTP ${response.status}: ${response.statusText}`;
+        } catch (jsonError) {
+          console.error('Failed to parse error response:', jsonError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        console.error('About to throw error with message:', errorMessage);
+        const error = new Error(errorMessage);
+        console.error('Created error object:', error);
+        throw error;
       }
       
       const data = await response.json();
@@ -398,27 +420,18 @@ const JourneyCalculator: React.FC = () => {
       };
       
       setSimulationData(transformedData);
-      
-      toast({
-        title: "Simulation Complete",
-        description: `Predicted overall CR: ${(data.overall_predicted_CR * 100).toFixed(2)}%`
-      });
     } catch (error) {
       console.error('Simulation error:', error);
-      toast({
-        title: "Simulation Failed",
-        description: error instanceof Error ? error.message : "Please check your inputs and try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSimulating(false);
+      throw error; // Re-throw to be handled by the calling function
     }
-  }, [buildPayload, toast, steps]);
+  }, [buildPayloadWithParams, steps]);
 
-  const runBacksolve = useCallback(async () => {
+  const runSimulationInternal = useCallback(async () => {
+    await runSimulationInternalWithParams();
+  }, [runSimulationInternalWithParams]);
+
+  const runBacksolveInternal = useCallback(async () => {
     try {
-      setIsBacksolving(true);
-      
       // Validate that all steps have observed CR values
       if (!steps || steps.length === 0) {
         throw new Error("At least one step is required");
@@ -434,9 +447,10 @@ const JourneyCalculator: React.FC = () => {
       // Build the payload with the correct format for backsolve API
       const basePayload = buildPayload();
       const backsolvePayload = {
-        steps: basePayload.steps.map(step => ({
+        steps: basePayload.steps.map((step, index) => ({
           questions: step.questions,
-          boosts: step.boosts
+          boosts: step.boosts,
+          observedCR: steps[index].observedCR  // Include observedCR in each step
         })),
         E: basePayload.E,
         N_importance: basePayload.N_importance,
@@ -460,30 +474,88 @@ const JourneyCalculator: React.FC = () => {
       });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Back-solve failed');
+        let errorMessage = 'Back-solve failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.error || errorData?.details || `HTTP ${response.status}: ${response.statusText}`;
+        } catch {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(String(errorMessage));
       }
       
       const data = await response.json();
       console.log("Received backsolve data:", data); // Debug log
       
       setBacksolveResult(data);
-      
-      toast({
-        title: "Back-Solve Complete",
-        description: "Optimal parameters found successfully"
-      });
+      return data; // Return data for immediate use
     } catch (error) {
       console.error('Back-solve error:', error);
+      throw error; // Re-throw to be handled by the calling function
+    }
+  }, [buildPayload, steps]);
+
+  const updateSimulationWithParams = useCallback(async (backsolveData: any) => {
+    if (backsolveData && backsolveData.bestParams) {
+      // Store current overrides as backup if not already stored
+      if (!backupOverrides) {
+        setBackupOverrides(overrides);
+      }
+      
+      // Apply the backsolve parameters to state for future use
+      const newOverrides = {
+        k: backsolveData.bestParams.best_k,
+        gamma_exit: backsolveData.bestParams.best_gamma_exit,
+        epsilon: overrides.epsilon // Keep existing epsilon if any
+      };
+      
+      setOverrides(newOverrides);
+      
+      // Run simulation with new parameters directly (don't wait for state update)
+      await runSimulationInternalWithParams(newOverrides);
+    } else {
+      throw new Error("No valid parameters found in backsolve result");
+    }
+  }, [backupOverrides, overrides, runSimulationInternalWithParams]);
+
+  const updateSimulationInternal = useCallback(async () => {
+    if (backsolveResult && backsolveResult.bestParams) {
+      // Store current overrides as backup if not already stored
+      if (!backupOverrides) {
+        setBackupOverrides(overrides);
+      }
+      
+      // Apply the backsolve parameters
+      setOverrides({
+        k: backsolveResult.bestParams.best_k,
+        gamma_exit: backsolveResult.bestParams.best_gamma_exit,
+        epsilon: overrides.epsilon // Keep existing epsilon if any
+      });
+      
+      // Run simulation with new parameters
+      await runSimulationInternal();
+    } else {
+      throw new Error("No valid parameters found in backsolve result");
+    }
+  }, [backsolveResult, backupOverrides, overrides, runSimulationInternal]);
+
+  // Wrapper for backward compatibility
+  const runSimulation = useCallback(async () => {
+    try {
+      await runSimulationInternal();
       toast({
-        title: "Back-Solve Failed",
-        description: error instanceof Error ? error.message : "Please check your observed CR values and try again.",
+        title: "Simulation Complete",
+        description: "Conversion rates predicted successfully"
+      });
+    } catch (error) {
+      console.error('Simulation error:', error);
+      toast({
+        title: "Simulation Failed",
+        description: error instanceof Error ? error.message : "Please check your inputs and try again.",
         variant: "destructive"
       });
-    } finally {
-      setIsBacksolving(false);
     }
-  }, [buildPayload, toast, steps]);
+  }, [runSimulationInternal, toast]);
 
   const runOptimize = useCallback(async () => {
     try {
@@ -589,7 +661,8 @@ const JourneyCalculator: React.FC = () => {
             throw new Error('Please add OPENAI_API_KEY to your .env.local file to enable LLM assessments');
           }
           
-          throw new Error(errorData.error || errorData.details || 'MCP assessment failed');
+          const errorMessage = errorData?.error || errorData?.details || 'MCP assessment failed';
+          throw new Error(String(errorMessage));
         }
 
         data = await response.json();
@@ -607,7 +680,8 @@ const JourneyCalculator: React.FC = () => {
 
         if (!fallbackResponse.ok) {
           const errorData = await fallbackResponse.json().catch(() => ({ error: 'Unknown error' }));
-          throw new Error(errorData.error || errorData.details || 'Assessment failed completely');
+          const errorMessage = errorData?.error || errorData?.details || 'Assessment failed completely';
+          throw new Error(String(errorMessage));
         }
 
         data = await fallbackResponse.json();
@@ -675,7 +749,8 @@ const JourneyCalculator: React.FC = () => {
             throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
           }
           
-          throw new Error(errorData.error || errorData.details || 'MCP funnel analysis failed');
+          const errorMessage = errorData?.error || errorData?.details || 'MCP funnel analysis failed';
+          throw new Error(String(errorMessage));
         }
 
         data = await response.json();
@@ -686,7 +761,8 @@ const JourneyCalculator: React.FC = () => {
         
         // For now, throw the error as there's no fallback for funnel analysis
         // In the future, you could implement a simplified analysis here
-        throw new Error(`MCP funnel analysis failed: ${mcpError instanceof Error ? mcpError.message : 'Unknown error'}`);
+        const errorMessage = mcpError instanceof Error ? mcpError.message : 'Unknown error';
+        throw new Error(`MCP funnel analysis failed: ${String(errorMessage)}`);
       }
       setMcpFunnelResult(data);
 
@@ -757,7 +833,8 @@ const JourneyCalculator: React.FC = () => {
           description: `Analyzed ${data.baseline_metrics?.frameworks_analyzed || 0} framework variants using ${data.baseline_metrics?.algorithm_used || 'optimization'}`
         });
       } else {
-        throw new Error(data.details || 'Enhanced analysis failed');
+        const errorMessage = data?.details || 'Enhanced analysis failed';
+        throw new Error(String(errorMessage));
       }
     } catch (error) {
       console.error('Enhanced MCP analysis error:', error);
@@ -918,7 +995,8 @@ const JourneyCalculator: React.FC = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.details || 'Fogg analysis failed');
+        const errorMessage = errorData?.error || errorData?.details || 'Fogg analysis failed';
+        throw new Error(String(errorMessage));
       }
 
       const foggResult = await response.json();
@@ -963,6 +1041,41 @@ const JourneyCalculator: React.FC = () => {
       setIsMCPAnalyzing(false);
     }
   }, [steps, toast, buildPayload]);
+
+  // Complete analysis workflow function
+  const runCompleteAnalysis = useCallback(async () => {
+    try {
+      setIsRunningComplete(true);
+      
+      // Step 1: Initial Simulation
+      setLoadingMessage('Running initial simulation...');
+      await runSimulationInternal();
+      
+      // Step 2: Back-solve optimization
+      setLoadingMessage('Optimizing parameters with back-solve...');
+      const backsolveData = await runBacksolveInternal();
+      
+      // Step 3: Update simulation with optimized parameters
+      setLoadingMessage('Re-running simulation with optimized parameters...');
+      await updateSimulationWithParams(backsolveData);
+      
+      toast({
+        title: "Complete Analysis Finished",
+        description: "Initial simulation, back-solve optimization, and updated simulation completed successfully!"
+      });
+      
+    } catch (error) {
+      console.error('Complete analysis error:', error);
+      toast({
+        title: "Complete Analysis Failed",
+        description: error instanceof Error ? error.message : "Please check your inputs and try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunningComplete(false);
+      setLoadingMessage('');
+    }
+  }, [runSimulationInternal, runBacksolveInternal, updateSimulationWithParams, toast]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1041,116 +1154,22 @@ const JourneyCalculator: React.FC = () => {
           isClassifyingBoosts={isClassifyingBoosts}
         />
 
-        {/* Simulation & Back-solve Controls */}
+        {/* Complete Analysis Controls */}
         <SimulationBacksolveControls
-          onRunSimulation={runSimulation}
-          onRunBacksolve={runBacksolve}
-          isSimulating={isSimulating}
-          isBacksolving={isBacksolving}
-          canRunSimulation={canRunSimulation}
-          canRunBacksolve={canRunBacksolve}
+          onRunCompleteAnalysis={runCompleteAnalysis}
+          isRunningComplete={isRunningComplete}
+          loadingMessage={loadingMessage}
+          canRunCompleteAnalysis={canRunSimulation && canRunBacksolve}
         />
 
         {/* Back-solve Result Panel */}
         {backsolveResult && (
           <BacksolveResultPanel
             backsolveResult={backsolveResult}
-            onUpdateSimulation={updateSimulation}
-            onRestoreDefault={restoreToDefault}
-            backupOverrides={backupOverrides}
           />
         )}
 
-        {/* Results Table */}
-        {simulationData && (
-          <ResultsTable
-            steps={steps}
-            simulationData={simulationData}
-            optimalPositions={optimalPositions}
-            optimizeData={optimizeResult ? {
-              optimal_step_order: optimizeResult.optimal_step_order,
-              optimal_CR_total: optimizeResult.optimal_CR_total,
-              sample_results: optimizeResult.sample_results,
-              hybrid_seeding: optimizeResult.hybrid_seeding,
-              algorithm: optimizeResult.algorithm
-            } : undefined}
-            llmCache={llmCache}
-            setLlmCache={setLlmCache}
-            llmAssessmentResult={llmAssessmentResult}
-          />
-        )}
-
-        {/* Standard Framework Analysis Section */}
-        {simulationData && (
-          <Card className="border border-gray-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-gray-900">
-                📊 Framework Analysis & Comparison
-              </CardTitle>
-              <p className="text-gray-600">
-                Compare performance across different optimization frameworks and step orderings.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                                 <div className="flex justify-between items-center">
-                   <div className="flex gap-4">
-                     <Button
-                       onClick={runMCPFunnelAnalysis}
-                       disabled={isMCPAnalyzing || !steps || steps.length === 0}
-                       className="bg-blue-600 hover:bg-blue-700"
-                     >
-                       {isMCPAnalyzing ? 'Processing...' : 'Run Framework Analysis'}
-                     </Button>
-                     <Button
-                       onClick={runEnhancedMCPAnalysis}
-                       disabled={isEnhancedMCPAnalyzing || !steps || steps.length === 0}
-                       className="bg-indigo-600 hover:bg-indigo-700"
-                     >
-                       {isEnhancedMCPAnalyzing ? 'Processing...' : 'Enhanced Analysis'}
-                     </Button>
-                   </div>
-                 </div>
-                
-                {/* Standard MCP Framework Comparison */}
-                <MCPComparisonTable
-                  mcpResult={mcpFunnelResult}
-                  onApplyVariant={applyMCPVariant || (() => {})}
-                  isLoading={isMCPAnalyzing}
-                />
-                
-                {/* Enhanced Framework Variant Analysis */}
-                {enhancedMcpResult && (
-                  <div className="mt-6">
-                    <h4 className="text-md font-semibold mb-3">Enhanced Framework Analysis</h4>
-                    {enhancedMcpResult.unique_combinations ? (
-                      <UniqueCombinationTable
-                        combinations={enhancedMcpResult.unique_combinations}
-                        baselineCR={enhancedMcpResult.baseline_CR_total}
-                      />
-                    ) : (
-                      <EnhancedComparisonTable
-                        variantResults={enhancedMcpResult.variant_results}
-                        ceilingAnalysis={enhancedMcpResult.ceiling_analysis}
-                        isLoading={isEnhancedMCPAnalyzing}
-                        onApplyVariant={applyEnhancedVariant || (() => {})}
-                      />
-                    )}
-                  </div>
-                )}
-                
-                {!mcpFunnelResult && !enhancedMcpResult && !isMCPAnalyzing && !isEnhancedMCPAnalyzing && (
-                  <div className="text-center py-8 text-gray-500">
-                    <BarChart3Icon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>Run framework analysis to see comparison results</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Specialized Analysis Results Section */}
+        {/* Detailed Analysis Results Section */}
         {simulationData && (
           <AnalysisTabsSection
             mcpFunnelResult={mcpFunnelResult}
@@ -1161,7 +1180,7 @@ const JourneyCalculator: React.FC = () => {
             onRunEnhancedMCP={runEnhancedMCPAnalysis}
             onApplyEnhancedVariant={applyEnhancedVariant}
             steps={steps}
-            onRunFoggAnalysis={simulationData ? runFoggAnalysis : undefined}
+            onRunFoggAnalysis={simulationData ? runMCPFunnelAnalysis : undefined}
             onApplyFoggOrder={(order) => {
               // Apply the Fogg-recommended order
               const reorderedSteps = order.map(index => steps[index]);
@@ -1180,6 +1199,10 @@ const JourneyCalculator: React.FC = () => {
             isAssessing={isAssessing}
             onRunAssessment={runLLMAssessment}
             baselineCR={simulationData?.CR_total || 0}
+            simulationData={simulationData}
+            optimalPositions={optimalPositions}
+            llmCache={llmCache}
+            setLlmCache={setLlmCache}
           />
         )}
 

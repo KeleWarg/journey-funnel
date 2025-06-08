@@ -9,14 +9,12 @@ interface LLMAssessmentPanelProps {
   assessmentResult: LLMAssessmentResult | null;
   isLoading: boolean;
   baselineCR: number;
-  onRunAssessment: () => void;
 }
 
 const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
   assessmentResult,
   isLoading,
-  baselineCR,
-  onRunAssessment
+  baselineCR
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
@@ -66,28 +64,16 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
         <CollapsibleContent>
           <CardContent className="space-y-4">
             
-            {/* Action Button */}
-            <div className="flex items-center justify-between">
+            {/* Description */}
+            <div className="text-center py-2">
               <p className="text-sm text-gray-600">
                 Apply 9 proven frameworks (PAS, Fogg, Nielsen, AIDA, Cialdini, SCARF, JTBD, TOTE, ELM) to optimize your question copy.
               </p>
-              <Button
-                onClick={onRunAssessment}
-                disabled={isLoading}
-                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <SparklesIcon className="h-4 w-4 mr-2" />
-                    Run LLM Assessment
-                  </>
-                )}
-              </Button>
+              {!assessmentResult && !isLoading && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Use the "Run Detailed Assessment" button above to get AI-powered copy recommendations.
+                </p>
+              )}
             </div>
 
             {/* Results Summary */}

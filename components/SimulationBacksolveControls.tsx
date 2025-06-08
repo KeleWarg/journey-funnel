@@ -1,66 +1,45 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@components/ui/card';
 import { Button } from '@components/ui/button';
 import { Loader2Icon } from 'lucide-react';
 
 interface SimulationBacksolveControlsProps {
-  onRunSimulation: () => void;
-  onRunBacksolve: () => void;
-  isSimulating: boolean;
-  isBacksolving: boolean;
-  canRunSimulation: boolean;
-  canRunBacksolve: boolean;
+  onRunCompleteAnalysis: () => void;
+  isRunningComplete: boolean;
+  loadingMessage: string;
+  canRunCompleteAnalysis: boolean;
 }
 
 const SimulationBacksolveControls: React.FC<SimulationBacksolveControlsProps> = ({
-  onRunSimulation,
-  onRunBacksolve,
-  isSimulating,
-  isBacksolving,
-  canRunSimulation,
-  canRunBacksolve
+  onRunCompleteAnalysis,
+  isRunningComplete,
+  loadingMessage,
+  canRunCompleteAnalysis
 }) => {
   return (
     <Card className="border border-gray-200 shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg font-semibold text-gray-900">
-          Run Analysis
+          Run Complete Analysis
         </CardTitle>
       </CardHeader>
       
       <CardContent>
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           
-          {/* Run Simulation Button */}
+          {/* Run Complete Analysis Button */}
           <Button
-            onClick={onRunSimulation}
-            disabled={!canRunSimulation || isSimulating}
-            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            onClick={onRunCompleteAnalysis}
+            disabled={!canRunCompleteAnalysis || isRunningComplete}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-md hover:from-blue-700 hover:to-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium text-base"
           >
-            {isSimulating ? (
+            {isRunningComplete ? (
               <>
-                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                Running Simulation...
+                <Loader2Icon className="h-5 w-5 mr-3 animate-spin" />
+                {loadingMessage}
               </>
             ) : (
-              'Run Simulation'
-            )}
-          </Button>
-
-          {/* Run Back-solve Button */}
-          <Button
-            onClick={onRunBacksolve}
-            disabled={!canRunBacksolve || isBacksolving}
-            className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isBacksolving ? (
-              <>
-                <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                Running Back-Solve...
-              </>
-            ) : (
-              'Run Back-Solve'
+              '🚀 Run Complete Analysis'
             )}
           </Button>
 
@@ -68,22 +47,19 @@ const SimulationBacksolveControls: React.FC<SimulationBacksolveControlsProps> = 
 
         {/* Help Text */}
         <div className="mt-4 space-y-2 text-sm text-gray-600">
-          {!canRunSimulation && (
+          {!canRunCompleteAnalysis && (
             <p className="text-red-600">
-              Fill in all required fields (question text and input types) to enable simulation.
+              Fill in all required fields (question text, input types, and observed CR values) to enable complete analysis.
             </p>
           )}
-          {!canRunBacksolve && (
-            <p className="text-orange-600">
-              Enter observed CR values for each step to enable back-solve.
-            </p>
-          )}
-          <p>
-            <strong>Simulation:</strong> Predicts conversion rates based on your funnel configuration.
-          </p>
-          <p>
-            <strong>Back-Solve:</strong> Finds optimal constants that best match your observed conversion rates.
-          </p>
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="font-medium text-blue-900 mb-2">Complete Analysis includes:</p>
+            <ul className="space-y-1 text-blue-800">
+              <li>• <strong>Initial Simulation:</strong> Predicts conversion rates based on your funnel configuration</li>
+              <li>• <strong>Back-Solve Optimization:</strong> Finds optimal constants that match your observed rates</li>
+              <li>• <strong>Updated Simulation:</strong> Re-runs simulation with optimized parameters for accurate results</li>
+            </ul>
+          </div>
         </div>
 
       </CardContent>
