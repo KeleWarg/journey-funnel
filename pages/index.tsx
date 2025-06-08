@@ -131,7 +131,7 @@ const JourneyCalculator: React.FC = () => {
   const [isAssessing, setIsAssessing] = useState(false);
   const [isMCPAnalyzing, setIsMCPAnalyzing] = useState(false);
   const [isEnhancedMCPAnalyzing, setIsEnhancedMCPAnalyzing] = useState(false);
-  const [numSamples, setNumSamples] = useState(5000); // Strategy 3: Increase default search space
+  const [numSamples, setNumSamples] = useState(20000); // Increased to 20000 per YAML patch - unlocking reorder upside
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
   const [isClassifyingBoosts, setIsClassifyingBoosts] = useState(false);
 

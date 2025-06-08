@@ -157,7 +157,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const foggBonus = scorePercentage * 1.5; // Up to 1.5pp bonus for high Fogg scores
 
     const finalUplift = uplift_pp + foggBonus;
-    const finalCR = Math.min(0.95, baseline_CR_total * (1 + finalUplift / 100));
+    const finalCR = baseline_CR_total * (1 + finalUplift / 100); // Removed 0.95 clamp per YAML patch - allow CR_total > baseline
 
     console.log('✅ Fogg analysis complete:', {
       baseline: (baseline_CR_total * 100).toFixed(2) + '%',

@@ -16,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       w_c, w_f, 
       w_E, w_N, 
       U0, 
-      sample_count = 10000,
+      sample_count = 20000, // Increased from 10000 to 20000 per YAML patch
       use_backsolved_constants = false,
       best_k,
       best_gamma_exit,
@@ -27,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const N = steps.length;
 
-    // Helper: Generate all permutations for exhaustive search (N ≤ 7)
+    // Helper: Generate all permutations for exhaustive search (N ≤ 8)
     function* permutations(arr: any[]): Generator<any[]> {
       if (arr.length <= 1) {
         yield arr.slice();
@@ -73,7 +73,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         // **CRITICAL FIX**: Clamp ΔCRₛ to ±20pp per YAML spec before applying
-        const MAX_UPLIFT_PER_STEP = 20; // 20pp per YAML spec
+        const MAX_UPLIFT_PER_STEP = 30; // 30pp per YAML patch - unlocking reorder upside
         const clampedUpliftPP = Math.min(MAX_UPLIFT_PER_STEP, Math.max(-MAX_UPLIFT_PER_STEP, bestUplift));
         
         // Apply uplift to observedCR: CR_s = clamp(CR_s + uplift/100, 0, 1)
@@ -210,7 +210,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 }
 
     // NEW: Smart algorithm selection per action plan
-    const useExhaustiveSearch = N <= 7;
+    const useExhaustiveSearch = N <= 8; // Expanded from N≤7 to N≤8 per YAML patch
     const algorithm = useExhaustiveSearch ? "exhaustive" : "heuristic_sampling";
     
     console.log(`📊 Optimization Strategy: ${algorithm} (N=${N})`);

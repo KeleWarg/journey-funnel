@@ -272,8 +272,8 @@ async def handle_assess_steps_fast(arguments: Dict[str, Any]) -> List[types.Text
             if assessment:
                 framework_data = assessment["frameworks"].get(framework, {})
                 uplift_pp = framework_data.get("estimated_uplift_pp", 0)
-                # Clamp uplift to ±20pp per YAML spec
-                clamped_uplift = max(-20, min(20, uplift_pp))
+                # Clamp uplift to ±30pp per YAML patch - unlocking reorder upside
+                clamped_uplift = max(-30, min(30, uplift_pp))
                 current_cr = enhanced_step.get("observedCR", 0.5)
                 enhanced_step["observedCR"] = max(0, min(1, current_cr + clamped_uplift / 100))
             enhanced_steps.append(enhanced_step)
@@ -459,7 +459,7 @@ async def handle_manus_funnel_fast(arguments: Dict[str, Any]) -> List[types.Text
         fogg_bonus = score_percentage * 1.5  # Up to 1.5pp bonus for high Fogg scores
         fogg_order_uplift += fogg_bonus
         
-        fogg_variant_cr = min(0.95, baseline_cr * (1 + fogg_order_uplift / 100))
+        fogg_variant_cr = baseline_cr * (1 + fogg_order_uplift / 100)  # Removed 0.95 clamp per YAML patch - allow CR_total > baseline
         
         # Create Fogg-BM variant per YAML spec
         fogg_variant = {

@@ -104,7 +104,7 @@ function mockManusFunnel(args: any) {
   
   const variants = frameworks.map((framework: string, index: number) => {
     const crBoost = 0.02 + (index * 0.01); // 2-10% boost
-    const CR_total = Math.min(0.95, baselineCR + crBoost);
+    const CR_total = baselineCR + crBoost; // Removed 0.95 clamp per YAML patch - allow CR_total > baseline
     const uplift_pp = (CR_total - baselineCR) * 100;
     
     // Generate step order variants
@@ -133,7 +133,7 @@ function mockManusFunnel(args: any) {
   // Add Fogg-BM (Fogg Behavior Model) variant if Fogg framework is requested
   if (frameworks.includes('Fogg')) {
     const foggCrBoost = 0.035; // 3.5% boost for Fogg-BM
-    const foggCR_total = Math.min(0.95, baselineCR + foggCrBoost);
+    const foggCR_total = baselineCR + foggCrBoost; // Removed 0.95 clamp per YAML patch - allow CR_total > baseline
     const foggUplift_pp = (foggCR_total - baselineCR) * 100;
     
     // Create behavioral model metrics for each step
