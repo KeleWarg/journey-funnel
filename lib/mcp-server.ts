@@ -20,9 +20,9 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
   }
 
   // Check if we should use mock MCP (for development/testing)
-  const useMockMCP = process.env.MCP_USE_MOCK === 'true' || 
-                     !process.env.MCP_SERVER_COMMAND || 
-                     process.env.MCP_SERVER_COMMAND === 'python' && process.env.MCP_SERVER_ARGS === '-m your_mcp_server';
+  // Force use of real MCP server if mcp_server_fast.py exists
+  const realServerExists = true; // We know mcp_server_fast.py exists
+  const useMockMCP = process.env.MCP_USE_MOCK === 'true' && !realServerExists;
 
   if (useMockMCP) {
     console.log('🧪 Using Mock MCP Client for development/testing');
@@ -40,10 +40,12 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
     const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
     const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
 
-    // Get configuration from environment variables
+    // Get configuration from environment variables or use defaults for mcp_server_fast.py
     const serverConfig = {
       command: config?.serverCommand || process.env.MCP_SERVER_COMMAND || 'python',
-      args: config?.serverArgs || process.env.MCP_SERVER_ARGS?.split(' ') || ['-m', 'your_mcp_server'],
+      args: config?.serverArgs || process.env.MCP_SERVER_ARGS?.split(' ') || [
+        process.cwd() + '/mcp_server_fast.py'
+      ],
       env: {
         ...process.env,
         ...(config?.apiKey && { MCP_API_KEY: config.apiKey }),
@@ -86,8 +88,8 @@ export async function initializeMCPOnServer(config?: MCPConfig): Promise<any> {
       async callFunction(functionName: string, args: any): Promise<any> {
         console.log(`🔄 MCP calling function: ${functionName}`);
         
-        // Increased timeout to 120s to allow real MCP server to complete comprehensive analysis
-        const timeoutMs = 120000; // 120 seconds (2 minutes)
+        // Increased timeout to 180s to allow real MCP server with OpenAI API calls to complete
+        const timeoutMs = 180000; // 180 seconds (3 minutes)
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`MCP call to ${functionName} timed out after ${timeoutMs}ms`)), timeoutMs)
         );

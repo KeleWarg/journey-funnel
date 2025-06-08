@@ -31,30 +31,14 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
     setExpandedSteps(newExpanded);
   };
 
-  // Calculate total uplift if we have assessment results
-  const calculateTotalUplift = () => {
-    if (!assessmentResult) return null;
-    
-    let boostedCR = 1;
-    let totalUpliftPP = 0;
-    
-    assessmentResult.assessments.forEach((assessment, index) => {
-      const currentStepCR = baselineCR; // This would need actual per-step CR calculation
-      const newStepCR = Math.min(1, currentStepCR + assessment.estimated_uplift);
-      boostedCR *= newStepCR;
-      totalUpliftPP += assessment.estimated_uplift * 100;
-    });
-    
-    const totalUplift = boostedCR - baselineCR;
-    
-    return {
-      newOverallCR: boostedCR,
-      totalUpliftPP: totalUplift * 100,
-      averageUpliftPerStep: totalUpliftPP / assessmentResult.assessments.length
-    };
-  };
-
-  const upliftData = calculateTotalUplift();
+  // Get uplift data from assessment result (already calculated with cumulative tracking)
+  const upliftData = assessmentResult ? {
+    newOverallCR: assessmentResult.predicted_CR_total,
+    totalUpliftPP: assessmentResult.uplift_total * 100,
+    averageUpliftPerStep: assessmentResult.assessments.length > 0 
+      ? (assessmentResult.assessments.reduce((sum, a) => sum + a.estimated_uplift, 0) * 100) / assessmentResult.assessments.length
+      : 0
+  } : null;
 
   return (
     <Card className="border border-purple-200 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
@@ -132,6 +116,44 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
                     </div>
                     <div className="text-gray-600">Avg per Step</div>
                   </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-200 text-center">
+                  <div className="text-sm text-gray-700 font-medium">
+                    Overall Predicted CR_total: {(upliftData.newOverallCR * 100).toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Per-Step Impact Table */}
+            {assessmentResult && (
+              <div className="p-4 bg-white rounded-lg border border-purple-200">
+                <h4 className="font-medium text-gray-900 mb-3">Step-by-Step Impact Analysis</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 font-medium text-gray-700">Step</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-700">Base CR_s (%)</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-700">ΔCR_s (pp)</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-700">New CR_s (%)</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-700">Cumulative CR_s (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assessmentResult.assessments.map((assessment: LLMStepAssessment) => (
+                        <tr key={assessment.stepIndex} className="border-b border-gray-100">
+                          <td className="py-2 px-3 font-medium">Step {assessment.stepIndex + 1}</td>
+                          <td className="text-right py-2 px-3">{(assessment.base_CR_s * 100).toFixed(2)}%</td>
+                          <td className={`text-right py-2 px-3 font-medium ${assessment.estimated_uplift >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {assessment.estimated_uplift >= 0 ? '+' : ''}{(assessment.estimated_uplift * 100).toFixed(1)}pp
+                          </td>
+                          <td className="text-right py-2 px-3">{(assessment.new_CR_s * 100).toFixed(2)}%</td>
+                          <td className="text-right py-2 px-3 font-medium text-blue-700">{(assessment.cumulative_new_CR_s * 100).toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

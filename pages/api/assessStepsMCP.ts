@@ -17,9 +17,11 @@ interface MCPFrameworkSuggestion {
 
 interface MCPStepAssessment {
   stepIndex: number;
-  suggestions: MCPFrameworkSuggestion[];
+  base_CR_s: number;
   estimated_uplift: number;
-  new_CR_s?: number;
+  new_CR_s: number;
+  cumulative_new_CR_s: number;
+  suggestions: MCPFrameworkSuggestion[];
 }
 
 interface MCPOrderRecommendation {
@@ -163,33 +165,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`✅ MCP Assessment: Received ${mcpResponse.assessments.length} assessments and ${mcpResponse.order_recommendations.length} order recommendations`);
 
-    // Post-processing: clamp new CR values
-    const processedAssessments = mcpResponse.assessments.map((assessment: MCPStepAssessment) => {
-      const step = steps.find(s => s.stepIndex === assessment.stepIndex);
-      if (!step) return assessment;
-
-      // Clamp new_CR_s = min(1, CR_s + estimated_uplift)
-      const new_CR_s = Math.min(1, step.CR_s + assessment.estimated_uplift);
-      
-      return {
-        ...assessment,
-        new_CR_s: new_CR_s
-      };
-    });
-
-    // Compute boosted CR_total and uplift_total
+    // Compute baseline CR_total from original steps
     const baseline_CR_total = steps.reduce((total, step) => total * step.CR_s, 1);
-    const boosted_CR_total = processedAssessments.reduce((total: number, assessment: MCPStepAssessment & { new_CR_s?: number }) => {
-      return total * (assessment.new_CR_s || assessment.estimated_uplift + 
-        (steps.find(s => s.stepIndex === assessment.stepIndex)?.CR_s || 0.5));
-    }, 1);
-    const uplift_total = boosted_CR_total - baseline_CR_total;
+    
+    // Get predicted CR_total from MCP response (already calculated with cumulative tracking)
+    const predicted_CR_total = mcpResponse.predicted_CR_total || mcpResponse.assessments[mcpResponse.assessments.length - 1]?.cumulative_new_CR_s || baseline_CR_total;
+    
+    const uplift_total = predicted_CR_total - baseline_CR_total;
 
     const response = {
-      assessments: processedAssessments,
+      assessments: mcpResponse.assessments,
       order_recommendations: mcpResponse.order_recommendations,
       baseline_CR_total,
-      boosted_CR_total,
+      predicted_CR_total,
+      boosted_CR_total: predicted_CR_total, // For backward compatibility
       uplift_total
     };
 
@@ -198,48 +187,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (error: any) {
     console.error('MCP Assessment error:', error);
     
-    // Provide fallback mock response when MCP fails
-    const mockResponse = {
-      assessments: req.body.steps.map((step: any, index: number) => ({
+    // Provide fallback mock response with cumulative tracking when MCP fails
+    let cumulative_cr = 1.0;
+    const baseline_CR_total = req.body.steps.reduce((total: number, step: any) => total * step.CR_s, 1);
+    
+    const mockAssessments = req.body.steps.map((step: any, index: number) => {
+      const base_CR_s = step.CR_s || 0.5;
+      const estimated_uplift = Math.min(0.30, Math.max(-0.30, 0.02)); // 2% mock uplift, clamped to ±30pp
+      const new_CR_s = Math.max(0, Math.min(1, base_CR_s + estimated_uplift));
+      
+      cumulative_cr *= new_CR_s;
+      
+      return {
         stepIndex: index,
+        base_CR_s,
+        estimated_uplift,
+        new_CR_s,
+        cumulative_new_CR_s: cumulative_cr,
         suggestions: [
           {
             framework: 'PAS',
             revisedText: `Optimized text for step ${index + 1}`,
             rationale: 'Mock suggestion due to MCP unavailability'
           }
-        ],
-        estimated_uplift: 0.02 // 2% mock uplift
-      })),
+        ]
+      };
+    });
+    
+    const mockResponse = {
+      assessments: mockAssessments,
       order_recommendations: [
         {
           framework: 'PAS',
           recommendedOrder: req.body.steps.map((_: any, index: number) => index),
           expectedUplift: 2.0,
-          expected_CR_total: 0.05,
+          expected_CR_total: cumulative_cr,
           reasoning: 'Mock recommendation due to MCP unavailability'
         }
       ],
+      baseline_CR_total,
+      predicted_CR_total: cumulative_cr,
+      uplift_total: cumulative_cr - baseline_CR_total,
       timestamp: new Date().toISOString(),
       method: 'fallback_mock'
     };
     
-    console.log('🔄 Using fallback mock response due to MCP failure');
-    
-    // Post-processing: clamp new CR values
-    const processedAssessments = mockResponse.assessments.map((assessment: any) => {
-      const cappedUplift = Math.min(0.15, Math.max(-0.10, assessment.estimated_uplift));
-      return {
-        ...assessment,
-        estimated_uplift: cappedUplift
-      };
-    });
+    console.log('🔄 Using fallback mock response with cumulative tracking due to MCP failure');
 
-    const response: MCPAssessmentResponse = {
-      assessments: processedAssessments,
-      order_recommendations: mockResponse.order_recommendations
-    };
-
-    res.status(200).json(response);
+    res.status(200).json(mockResponse);
   }
 } 

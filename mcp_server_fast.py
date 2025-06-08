@@ -112,11 +112,11 @@ Respond with valid JSON in this exact format:
         
         response = await asyncio.to_thread(
             openai_client.chat.completions.create,
-            model="gpt-4",
+            model="gpt-4o-mini",  # Faster, cheaper model
             messages=[{"role": "user", "content": comprehensive_prompt}],
             temperature=0.7,
-            max_tokens=2000,
-            timeout=45
+            max_tokens=1500,  # Reduced tokens for faster response
+            timeout=30  # Reduced timeout for faster model
         )
         
         response_text = response.choices[0].message.content.strip()
@@ -293,10 +293,16 @@ async def handle_assess_steps_fast(arguments: Dict[str, Any]) -> List[types.Text
     
     order_recommendations.sort(key=lambda x: x["expected_CR_total"], reverse=True)
     
-    # Transform assessments to expected format
+    # Transform assessments to expected format with cumulative tracking
     transformed_assessments = []
+    cumulative_cr = 1.0  # Start with 100% conversion for cumulative calculation
+    
     for assessment in assessments:
         step_index = assessment.get("stepIndex", 0)
+        
+        # Get original step data
+        original_step = next((s for s in steps if s.get("stepIndex", i) == step_index), None)
+        base_cr_s = original_step.get("CR_s", 0.5) if original_step else 0.5
         
         # Convert framework suggestions to expected format
         suggestions = []
@@ -313,16 +319,33 @@ async def handle_assess_steps_fast(arguments: Dict[str, Any]) -> List[types.Text
             framework_count += 1
         
         avg_uplift = total_uplift / framework_count if framework_count > 0 else 0
+        estimated_uplift_decimal = avg_uplift / 100  # Convert percentage points to decimal
+        
+        # Clamp uplift to max_uplift_per_step (30pp per YAML patch)
+        clamped_uplift = max(-0.30, min(0.30, estimated_uplift_decimal))
+        
+        # Calculate new CR_s after applying uplift
+        new_cr_s = max(0, min(1, base_cr_s + clamped_uplift))
+        
+        # Update cumulative CR
+        cumulative_cr *= new_cr_s
         
         transformed_assessments.append({
             "stepIndex": step_index,
-            "suggestions": suggestions,
-            "estimated_uplift": avg_uplift / 100  # Convert percentage points to decimal
+            "base_CR_s": base_cr_s,
+            "estimated_uplift": clamped_uplift,
+            "new_CR_s": new_cr_s,
+            "cumulative_new_CR_s": cumulative_cr,
+            "suggestions": suggestions
         })
+    
+    # Calculate predicted CR_total
+    predicted_cr_total = cumulative_cr
     
     result = {
         "assessments": transformed_assessments,
         "order_recommendations": order_recommendations,
+        "predicted_CR_total": predicted_cr_total,
         "timestamp": datetime.now().isoformat(),
         "method": "fast_single_call"
     }

@@ -16,20 +16,28 @@ export interface LLMFrameworkSuggestion {
 
 export interface LLMStepAssessment {
   stepIndex: number;
-  suggestions: LLMFrameworkSuggestion[];
+  base_CR_s: number;
   estimated_uplift: number;
+  new_CR_s: number;
+  cumulative_new_CR_s: number;
+  suggestions: LLMFrameworkSuggestion[];
 }
 
 export interface LLMAssessmentResult {
   assessments: LLMStepAssessment[];
+  baseline_CR_total: number;
+  predicted_CR_total: number;
+  uplift_total: number;
 }
 
 // MCP-specific interfaces
 export interface MCPStepAssessment {
   stepIndex: number;
-  suggestions: LLMFrameworkSuggestion[];
+  base_CR_s: number;
   estimated_uplift: number;
-  new_CR_s?: number;
+  new_CR_s: number;
+  cumulative_new_CR_s: number;
+  suggestions: LLMFrameworkSuggestion[];
 }
 
 export interface MCPOrderRecommendation {
@@ -42,7 +50,8 @@ export interface MCPAssessmentResult {
   assessments: MCPStepAssessment[];
   order_recommendations: MCPOrderRecommendation[];
   baseline_CR_total: number;
-  boosted_CR_total: number;
+  predicted_CR_total: number;
+  boosted_CR_total: number; // For backward compatibility
   uplift_total: number;
 }
 

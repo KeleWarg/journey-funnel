@@ -27,6 +27,8 @@ export function createMockMCPClient() {
 function mockAssessSteps(args: any) {
   const { steps, frameworks } = args;
   
+  // Calculate cumulative tracking as per patch specification
+  let cumulative_cr = 1.0;
   const assessments = steps.map((step: any, stepIndex: number) => {
     const suggestions = frameworks.slice(0, 3).map((framework: string) => {
       const improvements = {
@@ -65,16 +67,25 @@ function mockAssessSteps(args: any) {
     });
 
     // Calculate estimated uplift based on current CR and complexity
-    const currentCR = step.CR_s || 0.5;
+    const base_CR_s = step.CR_s || 0.5;
     const complexity = (step.Qs + step.Is + step.Ds) / 3;
-    const baseUplift = (1 - currentCR) * 0.12; // 12% of headroom
+    const baseUplift = (1 - base_CR_s) * 0.12; // 12% of headroom
     const complexityBonus = Math.min(0.05, complexity * 0.02);
-    const estimated_uplift = Math.min(0.15, baseUplift + complexityBonus);
+    const estimated_uplift = Math.min(0.30, Math.max(-0.30, baseUplift + complexityBonus)); // Clamp to ±30pp
+
+    // Calculate new CR_s after applying uplift
+    const new_CR_s = Math.max(0, Math.min(1, base_CR_s + estimated_uplift));
+    
+    // Update cumulative CR
+    cumulative_cr *= new_CR_s;
 
     return {
       stepIndex,
-      suggestions,
-      estimated_uplift
+      base_CR_s,
+      estimated_uplift,
+      new_CR_s,
+      cumulative_new_CR_s: cumulative_cr,
+      suggestions
     };
   });
 
@@ -93,7 +104,8 @@ function mockAssessSteps(args: any) {
 
   return {
     assessments,
-    order_recommendations
+    order_recommendations,
+    predicted_CR_total: cumulative_cr
   };
 }
 
