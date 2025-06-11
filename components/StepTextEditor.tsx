@@ -15,20 +15,6 @@ const StepTextEditor: React.FC<StepTextEditorProps> = ({
 }) => {
   return (
     <div className="space-y-4">
-      {/* Title Input */}
-      <div className="space-y-2">
-        <Label htmlFor="step-title" className="text-sm font-medium text-gray-700">
-          Step Title (optional)
-        </Label>
-        <Input
-          id="step-title"
-          value={step.title || ''}
-          onChange={(e) => onUpdateStep({ title: e.target.value })}
-          placeholder="Enter a short title for this step"
-          className="border-gray-300 focus:border-blue-500"
-        />
-      </div>
-
       {/* Support Copy */}
       <div className="space-y-2">
         <Label htmlFor="support-copy" className="text-sm font-medium text-gray-700">
