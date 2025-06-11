@@ -4,6 +4,7 @@ import { Button } from '@components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@components/ui/collapsible';
 import { ChevronDownIcon, SparklesIcon, TrendingUpIcon } from 'lucide-react';
 import { LLMAssessmentResult, LLMStepAssessment } from '../types';
+import { Badge } from '@components/ui/badge';
 
 interface LLMAssessmentPanelProps {
   assessmentResult: LLMAssessmentResult | null;
@@ -164,23 +165,58 @@ const LLMAssessmentPanel: React.FC<LLMAssessmentPanelProps> = ({
                           </div>
                         </CardHeader>
                       </CollapsibleTrigger>
-                      
                       <CollapsibleContent>
-                        <CardContent className="pt-0">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {assessment.suggestions.map((suggestion, idx) => (
-                              <div key={idx} className="p-3 border rounded-lg bg-gray-50">
-                                <div className="font-medium text-sm text-purple-700 mb-2">
-                                  {suggestion.framework}
-                                </div>
-                                <div className="text-sm text-gray-900 mb-2 font-medium">
-                                  "{suggestion.revisedText}"
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {suggestion.rationale}
-                                </div>
+                        <CardContent className="py-3">
+                          {/* Title Suggestion */}
+                          {assessment.titleSuggestion && (
+                            <div className="mb-4">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Title Suggestion</h5>
+                              <div className="bg-blue-50 p-3 rounded-md text-blue-800">
+                                {assessment.titleSuggestion}
                               </div>
-                            ))}
+                            </div>
+                          )}
+
+                          {/* Support Copy Suggestion */}
+                          {assessment.supportCopySuggestion && (
+                            <div className="mb-4">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Support Copy Suggestion</h5>
+                              <div className="bg-purple-50 p-3 rounded-md text-purple-800">
+                                {assessment.supportCopySuggestion}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Extra Support Text Suggestions */}
+                          {assessment.extraSupportSuggestions && assessment.extraSupportSuggestions.length > 0 && (
+                            <div className="mb-4">
+                              <h5 className="text-sm font-medium text-gray-700 mb-2">Additional Context Suggestions</h5>
+                              <div className="space-y-2">
+                                {assessment.extraSupportSuggestions.map((text, idx) => (
+                                  <div key={idx} className="bg-green-50 p-3 rounded-md text-green-800">
+                                    {text}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Existing Framework Suggestions */}
+                          <div>
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">Framework Suggestions</h5>
+                            <div className="space-y-3">
+                              {assessment.suggestions.map((suggestion, idx) => (
+                                <div key={idx} className="bg-gray-50 p-3 rounded-md">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="bg-gray-100">
+                                      {suggestion.framework}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm text-gray-800 mb-2">{suggestion.revisedText}</p>
+                                  <p className="text-xs text-gray-600 italic">{suggestion.rationale}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </CardContent>
                       </CollapsibleContent>

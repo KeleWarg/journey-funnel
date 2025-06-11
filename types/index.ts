@@ -21,6 +21,9 @@ export interface LLMStepAssessment {
   new_CR_s: number;
   cumulative_new_CR_s: number;
   suggestions: LLMFrameworkSuggestion[];
+  titleSuggestion?: string;
+  supportCopySuggestion?: string;
+  extraSupportSuggestions?: string[];
 }
 
 export interface LLMAssessmentResult {
@@ -63,6 +66,9 @@ export interface MCPStepAssessment {
   new_CR_s: number;
   cumulative_new_CR_s: number;
   suggestions: LLMFrameworkSuggestion[];
+  titleSuggestion?: string;
+  supportCopySuggestion?: string;
+  extraSupportSuggestions?: string[];
 }
 
 export interface MCPOrderRecommendation {
@@ -243,4 +249,11 @@ export interface APIResponse<T> {
   data?: T;
   error?: string;
   details?: string;
+}
+
+export interface StepWithText extends Step {
+  questionTexts: string[];
+  title?: string;
+  supportCopy?: string;
+  extraSupportTexts?: string[];
 } 

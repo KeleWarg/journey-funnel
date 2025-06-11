@@ -79,14 +79,23 @@ function mockAssessSteps(args: any) {
     // Update cumulative CR
     cumulative_cr *= new_CR_s;
 
-    return {
+    // Add mock optional text fields
+    const assessment = {
       stepIndex,
       base_CR_s,
       estimated_uplift,
       new_CR_s,
       cumulative_new_CR_s: cumulative_cr,
-      suggestions
+      suggestions,
+      titleSuggestion: `Step ${stepIndex + 1}: ${step.questionTexts[0]?.split('?')[0] || 'Information'}`,
+      supportCopySuggestion: 'This information helps us provide you with a better experience.',
+      extraSupportSuggestions: [
+        '95% of users complete this step in under 30 seconds',
+        'Your data is securely encrypted and never shared'
+      ]
     };
+
+    return assessment;
   });
 
   const order_recommendations = [

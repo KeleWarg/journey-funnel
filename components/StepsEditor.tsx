@@ -5,14 +5,15 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Trash2Icon, PlusIcon } from 'lucide-react';
-import { Question, Step, BoostElement } from '../types';
+import { Question, Step, BoostElement, StepWithText } from '../types';
 import BoostElementsControl from './BoostElementsControl';
+import StepTextEditor from './StepTextEditor';
 
 interface StepsEditorProps {
-  steps: Step[];
+  steps: StepWithText[];
   onAddStep: () => void;
   onRemoveStep: (index: number) => void;
-  onUpdateStep: (index: number, updates: Partial<Step>) => void;
+  onUpdateStep: (index: number, updates: Partial<StepWithText>) => void;
   onAddQuestion: (stepIndex: number) => void;
   onRemoveQuestion: (stepIndex: number, questionIndex: number) => void;
   onUpdateQuestion: (stepIndex: number, questionIndex: number, updates: Partial<Question>) => void;
@@ -90,6 +91,11 @@ const StepsEditor: React.FC<StepsEditorProps> = ({
             </CardHeader>
             
             <CardContent className="p-4 space-y-4">
+              {/* Add StepTextEditor */}
+              <StepTextEditor
+                step={step}
+                onUpdateStep={(updates) => onUpdateStep(stepIndex, updates)}
+              />
               
               {/* Step Settings */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

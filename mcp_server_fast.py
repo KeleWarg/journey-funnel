@@ -76,36 +76,38 @@ async def generate_fast_analysis(steps: List[Dict], frameworks: List[str]) -> Di
     
     frameworks_text = ", ".join([f"{fw} ({FRAMEWORK_FOCUSES[fw]})" for fw in frameworks])
     
-    comprehensive_prompt = f"""
-You are a conversion optimization expert. Analyze this entire funnel and provide optimization suggestions for each step using multiple frameworks.
+    comprehensive_prompt = f"""Analyze {len(steps)} funnel steps using {len(frameworks)} frameworks.
+For each step, provide:
+1. Framework-specific suggestions
+2. Optional title suggestion (if it would improve clarity)
+3. Optional support copy (if it would improve understanding)
+4. Optional extra support texts (up to 2, if they would provide valuable context)
 
-FUNNEL STEPS:
-{chr(10).join(steps_text)}
+Steps to analyze:
+{json.dumps(steps, indent=2)}
 
-FRAMEWORKS TO ANALYZE: {frameworks_text}
+Frameworks to use:
+{json.dumps(frameworks, indent=2)}
 
-For each step and framework combination, provide ONE specific, actionable suggestion. Focus on practical changes.
-
-SPECIAL INSTRUCTIONS FOR FOGG FRAMEWORK:
-- Include motivation_score (1-5): How motivated users are at this step
-- Include trigger_score (1-5): How clear/effective the trigger/call-to-action is
-- These scores will be used in Fogg Behavior Model calculations: motivation × ability × trigger
-
-Respond with valid JSON in this exact format:
+Provide analysis in this exact JSON format:
 {{
   "assessments": [
     {{
-      "stepIndex": 0,
+      "stepIndex": number,
       "frameworks": {{
-        "PAS": {{"suggestion": "specific suggestion", "reasoning": "why it works", "confidence": 0.8, "estimated_uplift_pp": 2.5}},
-        "Fogg": {{"suggestion": "specific suggestion", "reasoning": "why it works", "confidence": 0.7, "estimated_uplift_pp": 1.8, "motivation_score": 4.0, "trigger_score": 3.5}},
-        ... (all frameworks - only Fogg needs motivation_score and trigger_score)
-      }}
-    }},
-    ... (all steps)
+        "frameworkName": {{
+          "suggestion": "string",
+          "reasoning": "string",
+          "confidence": number,
+          "estimated_uplift_pp": number
+        }}
+      }},
+      "titleSuggestion": "string or null",
+      "supportCopySuggestion": "string or null",
+      "extraSupportSuggestions": ["string"] or null
+    }}
   ]
-}}
-"""
+}}"""
     
     try:
         logger.info(f"🚀 Making single comprehensive API call for {len(steps)} steps, {len(frameworks)} frameworks")
@@ -330,14 +332,24 @@ async def handle_assess_steps_fast(arguments: Dict[str, Any]) -> List[types.Text
         # Update cumulative CR
         cumulative_cr *= new_cr_s
         
-        transformed_assessments.append({
+        transformed_assessment = {
             "stepIndex": step_index,
             "base_CR_s": base_cr_s,
             "estimated_uplift": clamped_uplift,
             "new_CR_s": new_cr_s,
             "cumulative_new_CR_s": cumulative_cr,
             "suggestions": suggestions
-        })
+        }
+
+        # Add optional text fields if present
+        if assessment.get("titleSuggestion"):
+            transformed_assessment["titleSuggestion"] = assessment["titleSuggestion"]
+        if assessment.get("supportCopySuggestion"):
+            transformed_assessment["supportCopySuggestion"] = assessment["supportCopySuggestion"]
+        if assessment.get("extraSupportSuggestions"):
+            transformed_assessment["extraSupportSuggestions"] = assessment["extraSupportSuggestions"]
+
+        transformed_assessments.append(transformed_assessment)
     
     # Calculate predicted CR_total
     predicted_cr_total = cumulative_cr

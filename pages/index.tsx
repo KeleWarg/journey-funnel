@@ -22,7 +22,7 @@ import UniqueCombinationTable from '@components/UniqueCombinationTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
 import FoggModelAnalysis from '@components/FoggModelAnalysis';
 import AnalysisTabsSection from '@components/AnalysisTabsSection';
-import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult } from '../types';
+import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult, StepWithText } from '../types';
 
 // Default values and constants - Updated to match YAML specification
 const JOURNEY_TYPE_DEFAULTS = {
@@ -89,7 +89,7 @@ const JourneyCalculator: React.FC = () => {
   const { toast } = useToast();
   
   // State
-  const [steps, setSteps] = useState<Step[]>([{
+  const [steps, setSteps] = useState<StepWithText[]>([{
     boosts: 0,
     observedCR: 0.85,
     questions: [
@@ -100,7 +100,11 @@ const JourneyCalculator: React.FC = () => {
         difficulty: 1
       }
     ],
-    boostElements: []
+    boostElements: [],
+    questionTexts: ["What's your email address?"],
+    title: undefined,
+    supportCopy: undefined,
+    extraSupportTexts: undefined
   }]);
   const [journeyType, setJourneyType] = useState<JourneyType>('transactional');
   const [backsolveResult, setBacksolveResult] = useState<BacksolveResult | null>(null);
@@ -170,7 +174,11 @@ const JourneyCalculator: React.FC = () => {
       boosts: 0,
       observedCR: 0.8,
       questions: [],
-      boostElements: []
+      boostElements: [],
+      questionTexts: [],
+      title: undefined,
+      supportCopy: undefined,
+      extraSupportTexts: undefined
     }]);
   };
 
@@ -186,14 +194,16 @@ const JourneyCalculator: React.FC = () => {
   const addQuestion = (stepIndex: number) => {
     setSteps(steps.map((step, i) => {
       if (i === stepIndex) {
+        const newQuestions = [...step.questions, {
+          title: '',
+          input_type: '',
+          invasiveness: 2,
+          difficulty: 2
+        }];
         return {
           ...step,
-          questions: [...step.questions, {
-            title: '',
-            input_type: '',
-            invasiveness: 2,
-            difficulty: 2
-          }]
+          questions: newQuestions,
+          questionTexts: newQuestions.map(q => q.title)
         };
       }
       return step;
@@ -215,9 +225,11 @@ const JourneyCalculator: React.FC = () => {
   const updateQuestion = (stepIndex: number, questionIndex: number, updates: Partial<typeof steps[0]['questions'][0]>) => {
     setSteps(steps.map((step, i) => {
       if (i === stepIndex) {
+        const updatedQuestions = step.questions.map((q, j) => j === questionIndex ? { ...q, ...updates } : q);
         return {
           ...step,
-          questions: step.questions.map((q, j) => j === questionIndex ? { ...q, ...updates } : q)
+          questions: updatedQuestions,
+          questionTexts: updatedQuestions.map(q => q.title) // Update questionTexts array
         };
       }
       return step;

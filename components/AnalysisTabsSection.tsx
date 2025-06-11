@@ -189,7 +189,7 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto sm:h-10">
             <TabsTrigger value="step_flow" className="flex items-center gap-2">
               <ListIcon className="h-4 w-4" />
               Step Flow
