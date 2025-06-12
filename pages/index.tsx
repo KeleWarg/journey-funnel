@@ -1587,7 +1587,7 @@ const JourneyCalculator: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between text-sm text-gray-500">
-            <p>&copy; 2024 Journey Calculator. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Journey Calculator. All rights reserved.</p>
             <div className="flex space-x-4">
               <Link href="/docs" className="hover:text-gray-700">Documentation</Link>
               <span>v1.0.0</span>
