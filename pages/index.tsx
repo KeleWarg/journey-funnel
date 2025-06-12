@@ -573,8 +573,10 @@ const JourneyCalculator: React.FC = () => {
   }, [runSimulationInternal, toast]);
 
   const runOptimize = useCallback(async () => {
+    console.log('🚀 runOptimize called!');
     try {
       setIsOptimizing(true);
+      console.log('🔄 isOptimizing set to true');
       
       // Enhanced payload with Fogg-based optimization
       const payload = { 
@@ -593,6 +595,7 @@ const JourneyCalculator: React.FC = () => {
         // Enhanced optimization strategy
         optimizationStrategy: foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? 'fogg_intelligent' : 'standard'
       };
+      console.log('📦 Optimization payload:', payload);
       const response = await fetch('/api/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -604,9 +607,6 @@ const JourneyCalculator: React.FC = () => {
       const data = await response.json();
       console.log('Optimize response:', data); // Debug log
       
-      // Store the complete optimize result
-      setOptimizeResult(data);
-      
       // Convert optimalOrder array to optimalPositions object
       const optimalPositionsMap: Record<number, number> = {};
       if (data.optimalOrder && Array.isArray(data.optimalOrder)) {
@@ -615,12 +615,21 @@ const JourneyCalculator: React.FC = () => {
         });
       }
       
+      // Map API response to expected format for UI components
+      const mappedData = {
+        ...data,
+        optimal_step_order: data.optimalOrder,
+        optimal_CR_total: data.optimalCRTotal,
+        sample_results: data.allSamples || []
+      };
+      
       setOptimalPositions(optimalPositionsMap);
+      setOptimizeResult(mappedData);
       setSimulationData((prev: SimulationData | null) => prev ? { ...prev, bestCR: data.optimalCRTotal } : null);
       
       toast({
         title: "Optimization Complete",
-        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm${data.hybrid_seeding?.enabled ? ' with Hybrid Fogg+ELM seeding' : ''}`
+        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm${data.fogg_seeding?.enabled ? ' with Fogg B=MAT seeding' : data.hybrid_seeding?.enabled ? ' with Hybrid seeding' : ''}`
       });
     } catch (error) {
       console.error('Optimization error:', error);
@@ -632,7 +641,7 @@ const JourneyCalculator: React.FC = () => {
     } finally {
       setIsOptimizing(false);
     }
-  }, [buildPayload, numSamples, toast, backsolveResult]);
+  }, [buildPayload, numSamples, toast, backsolveResult, hybridSeeding, llmAssessmentResult, foggStepAssessments]);
 
   const runLLMAssessment = useCallback(async () => {
     try {
