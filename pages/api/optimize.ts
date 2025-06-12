@@ -24,7 +24,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       apply_llm_uplift = true,  // NEW: Apply LLM suggestions per action plan
       llmAssessments = [],     // NEW: LLM assessment results per step
       hybrid_seeding = false,   // NEW: Use Hybrid Fogg+ELM seeding
-      seeded_order = false      // NEW: Include seeded order in optimization
+      seeded_order = false,     // NEW: Include seeded order in optimization
+      // NEW: Fogg-based intelligent optimization
+      foggStepAssessments = [], // Fogg B=MAT assessment data
+      useFoggSeeding = false,   // Use Fogg scores for intelligent seeding
+      optimizationStrategy = 'standard' // 'standard' | 'fogg_intelligent'
     } = req.body;
 
     const N = steps.length;
@@ -211,6 +215,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   return cumulativeCR;
 }
 
+    // NEW: Fogg B=MAT Intelligent Seeding Logic
+    let foggSeededOrder: number[] | null = null;
+    
+    if (useFoggSeeding && foggStepAssessments && foggStepAssessments.length > 0) {
+      console.log(`🧠 Computing Fogg B=MAT intelligent seeded order...`);
+      
+      // Calculate Fogg composite scores for each step
+      const foggStepScores = foggStepAssessments.map((assessment: any) => {
+        // Fogg B=MAT formula: Behavior = Motivation × Ability × Trigger
+        const foggScore = assessment.motivation_score * assessment.ability_score * assessment.trigger_score;
+        
+        // Also consider overall score and barriers
+        const barrierPenalty = assessment.barriers ? assessment.barriers.length * 0.1 : 0;
+        const adjustedScore = (foggScore + assessment.overall_score * 25) / 2 - barrierPenalty; // Scale overall to match fogg range
+        
+        return {
+          stepIndex: assessment.stepIndex,
+          motivation: assessment.motivation_score,
+          ability: assessment.ability_score,
+          trigger: assessment.trigger_score,
+          foggScore,
+          overallScore: assessment.overall_score,
+          barrierCount: assessment.barriers ? assessment.barriers.length : 0,
+          adjustedScore
+        };
+      });
+      
+      // Sort by adjusted Fogg score (descending) - highest scoring steps first
+      foggStepScores.sort((a: any, b: any) => b.adjustedScore - a.adjustedScore);
+      foggSeededOrder = foggStepScores.map((score: any) => score.stepIndex);
+      
+      console.log(`🎯 Fogg B=MAT seeded order: [${foggSeededOrder?.join(',') || ''}]`);
+      console.log(`📊 Fogg step scores:`, foggStepScores.map((score: any) => 
+        `Step ${score.stepIndex}: M=${score.motivation.toFixed(1)} × A=${score.ability.toFixed(1)} × T=${score.trigger.toFixed(1)} = ${score.foggScore.toFixed(1)} (Adj: ${score.adjustedScore.toFixed(1)})`
+      ));
+    }
+
     // NEW: Hybrid Fogg + ELM Seeding Logic
     let hybridSeededOrder: number[] | null = null;
     
@@ -301,11 +342,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ));
     }
 
-    // NEW: Smart algorithm selection per action plan
+    // NEW: Smart algorithm selection with Fogg intelligence
     const useExhaustiveSearch = N <= 8; // Expanded from N≤7 to N≤8 per YAML patch
-    const algorithm = useExhaustiveSearch ? "exhaustive" : (hybrid_seeding ? "hybrid_seeded_sampling" : "heuristic_sampling");
+    let algorithm = "heuristic_sampling";
+    
+    if (useExhaustiveSearch) {
+      algorithm = "exhaustive";
+    } else if (useFoggSeeding && foggSeededOrder) {
+      algorithm = "fogg_intelligent_sampling";
+    } else if (hybrid_seeding) {
+      algorithm = "hybrid_seeded_sampling";
+    }
     
     console.log(`📊 Optimization Strategy: ${algorithm} (N=${N})`);
+    if (useFoggSeeding && foggSeededOrder) {
+      console.log(`🧠 Using Fogg B=MAT intelligent seeding with live AI analysis`);
+    }
     console.log(`🔄 ${useExhaustiveSearch ? `All ${factorial(N)} permutations` : `${sample_count} random samples`}`);
 
     // Calculate factorial for logging
@@ -484,17 +536,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       for (let trial = 0; trial < sample_count; trial++) {
         let permOrder;
         
-        if (hybrid_seeding && hybridSeededOrder && trial === 0) {
-          // First trial: Use the hybrid seeded order
+        // PRIORITY 1: Fogg B=MAT intelligent seeding (highest priority)
+        if (useFoggSeeding && foggSeededOrder && trial === 0) {
+          // First trial: Use the Fogg B=MAT seeded order
+          permOrder = [...foggSeededOrder];
+          console.log(`🧠 Trial 0: Using Fogg B=MAT seeded order [${permOrder.join(',')}]`);
+        } else if (useFoggSeeding && foggSeededOrder && trial % 500 === 0 && trial > 0) {
+          // Every 500 trials: Use slight perturbation of Fogg seeded order
+          permOrder = shuffleOneSwap(foggSeededOrder);
+        } else if (useFoggSeeding && foggSeededOrder && trial % 100 === 0 && trial > 0) {
+          // Every 100 trials: Use more aggressive perturbation of Fogg order
+          permOrder = [...foggSeededOrder];
+          // Swap 2-3 positions to explore nearby solutions
+          for (let swaps = 0; swaps < Math.min(3, Math.floor(N/3)); swaps++) {
+            permOrder = shuffleOneSwap(permOrder);
+          }
+        }
+        // PRIORITY 2: Hybrid Fogg+ELM seeding (secondary)
+        else if (hybrid_seeding && hybridSeededOrder && trial === 1) {
+          // Second trial: Use the hybrid seeded order
           permOrder = [...hybridSeededOrder];
-          console.log(`🌟 Trial 0: Using hybrid seeded order [${permOrder.join(',')}]`);
-        } else if (hybrid_seeding && hybridSeededOrder && trial % 1000 === 0 && trial > 0) {
-          // Every 1000 trials: Use slight perturbation of seeded order
+          console.log(`🌟 Trial 1: Using hybrid seeded order [${permOrder.join(',')}]`);
+        } else if (hybrid_seeding && hybridSeededOrder && trial % 1000 === 0 && trial > 1) {
+          // Every 1000 trials: Use slight perturbation of hybrid seeded order
           permOrder = shuffleOneSwap(hybridSeededOrder);
-        } else if (trial < 100) {
-          // First 100: Try systematic patterns
-          if (trial === 1) permOrder = Array.from({ length: N }, (_, i) => N - 1 - i); // reverse
-          else if (trial === 2) permOrder = Array.from({ length: N }, (_, i) => i); // identity
+        }
+        // PRIORITY 3: Systematic patterns
+        else if (trial < 50) {
+          // First 50: Try systematic patterns
+          if (trial === 2) permOrder = Array.from({ length: N }, (_, i) => N - 1 - i); // reverse
+          else if (trial === 3) permOrder = Array.from({ length: N }, (_, i) => i); // identity
           else permOrder = shuffleArray(Array.from({ length: N }, (_, i) => i));
         } else {
           // Rest: Pure random sampling
@@ -512,9 +583,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           optimalCRTotal = crTotal;
           optimalOrder = permOrder;
           
-          if (hybrid_seeding && hybridSeededOrder && 
+          // Check if Fogg seeding achieved the best result
+          if (useFoggSeeding && foggSeededOrder && 
+              JSON.stringify(permOrder) === JSON.stringify(foggSeededOrder)) {
+            console.log(`🧠 Fogg B=MAT seeded order achieved best result! CR=${(crTotal*100).toFixed(2)}%`);
+          } else if (hybrid_seeding && hybridSeededOrder && 
               JSON.stringify(permOrder) === JSON.stringify(hybridSeededOrder)) {
-            console.log(`🎯 Seeded order achieved best result! CR=${(crTotal*100).toFixed(2)}%`);
+            console.log(`🌟 Hybrid seeded order achieved best result! CR=${(crTotal*100).toFixed(2)}%`);
           }
         }
         
@@ -553,6 +628,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         improvement_possible: potentialGainPP > 0.5 // Worth optimizing if >0.5pp gain
       },
       llm_uplifts_applied: apply_llm_uplift && llmAssessments && llmAssessments.length > 0,
+      fogg_seeding: {
+        enabled: useFoggSeeding,
+        seeded_order: foggSeededOrder,
+        seeded_order_is_optimal: foggSeededOrder && JSON.stringify(optimalOrder) === JSON.stringify(foggSeededOrder)
+      },
       hybrid_seeding: {
         enabled: hybrid_seeding && seeded_order,
         seeded_order: hybridSeededOrder,

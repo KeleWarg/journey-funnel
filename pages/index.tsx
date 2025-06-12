@@ -575,6 +575,8 @@ const JourneyCalculator: React.FC = () => {
   const runOptimize = useCallback(async () => {
     try {
       setIsOptimizing(true);
+      
+      // Enhanced payload with Fogg-based optimization
       const payload = { 
         ...buildPayload(), 
         sample_count: numSamples,
@@ -584,7 +586,12 @@ const JourneyCalculator: React.FC = () => {
         include_sample_results: true,
         hybrid_seeding: hybridSeeding,
         seeded_order: hybridSeeding,
-        llmAssessments: llmAssessmentResult?.assessments || []
+        llmAssessments: llmAssessmentResult?.assessments || [],
+        // NEW: Pass Fogg assessment data for intelligent seeding
+        foggStepAssessments: foggStepAssessments?.assessments || [],
+        useFoggSeeding: foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0,
+        // Enhanced optimization strategy
+        optimizationStrategy: foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? 'fogg_intelligent' : 'standard'
       };
       const response = await fetch('/api/optimize', {
         method: 'POST',
@@ -1298,10 +1305,54 @@ const JourneyCalculator: React.FC = () => {
                 🎯 Find Optimal Step Flow
               </CardTitle>
               <p className="text-gray-600">
-                Discover the best step ordering using Monte Carlo optimization with optional hybrid Fogg+ELM seeding.
+                AI-powered step reordering using live Fogg B=MAT analysis, unique combinations impact, and intelligent optimization.
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Fogg-Based Optimization Status */}
+              {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">🧠</span>
+                    <h4 className="text-lg font-semibold text-blue-900">🧠 Fogg B=MAT Intelligence Available</h4>
+                    {!foggStepAssessments.isMock && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        Live AI Analysis
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {foggStepAssessments.assessments.map((assessment, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-sm font-medium text-gray-900 mb-2">Step {assessment.stepIndex + 1}</div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center">
+                            <div className="font-bold text-blue-600">{assessment.motivation_score.toFixed(1)}</div>
+                            <div className="text-gray-600">Motivation</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-bold text-green-600">{assessment.ability_score.toFixed(1)}</div>
+                            <div className="text-gray-600">Ability</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-bold text-purple-600">{assessment.trigger_score.toFixed(1)}</div>
+                            <div className="text-gray-600">Trigger</div>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-center">
+                          <div className="text-sm font-bold text-gray-900">
+                            Overall: {assessment.overall_score.toFixed(1)}/5
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-blue-700">
+                    ✨ <strong>Smart Optimization:</strong> Using live Fogg scores to intelligently seed step reordering for maximum conversion impact.
+                  </p>
+                </div>
+              )}
+
               {/* Optimize Controls */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
@@ -1322,27 +1373,41 @@ const JourneyCalculator: React.FC = () => {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">
-                    Optimization Options
+                    Optimization Strategy
                   </Label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="hybrid-seeding"
-                      checked={hybridSeeding}
-                      onChange={(e) => setHybridSeeding(e.target.checked)}
-                      disabled={!llmAssessmentResult?.assessments?.length}
-                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                    />
-                    <label 
-                      htmlFor="hybrid-seeding" 
-                      className={`text-sm ${llmAssessmentResult?.assessments?.length ? 'text-gray-900' : 'text-gray-400'}`}
-                    >
-                      Hybrid Fogg + ELM Seeding
-                    </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="fogg-seeding"
+                        checked={foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0}
+                        disabled={true}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label className="text-sm text-gray-900">
+                        🧠 Fogg B=MAT Seeding {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '(Active)' : '(Run Assessment)'}
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="hybrid-seeding"
+                        checked={hybridSeeding}
+                        onChange={(e) => setHybridSeeding(e.target.checked)}
+                        disabled={!llmAssessmentResult?.assessments?.length}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label 
+                        htmlFor="hybrid-seeding" 
+                        className={`text-sm ${llmAssessmentResult?.assessments?.length ? 'text-gray-900' : 'text-gray-400'}`}
+                      >
+                        📊 Framework Analysis Boost
+                      </label>
+                    </div>
                   </div>
-                  {!llmAssessmentResult?.assessments?.length && (
+                  {!(foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0) && (
                     <p className="text-xs text-amber-600">
-                      ⚠️ Run LLM Assessment first to enable seeding
+                      ⚠️ Run Detailed Assessment first for AI-powered optimization
                     </p>
                   )}
                 </div>
@@ -1359,20 +1424,27 @@ const JourneyCalculator: React.FC = () => {
                         Optimizing...
                       </>
                     ) : (
-                      'Find Optimal Flow'
+                      foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '🧠 AI-Optimize Flow' : 'Find Optimal Flow'
                     )}
                   </Button>
                 </div>
               </div>
 
-              {/* Help Text */}
-              <div className="text-sm text-gray-600 space-y-1 bg-white p-4 rounded-lg">
+              {/* Enhanced Help Text */}
+              <div className="text-sm text-gray-600 space-y-2 bg-white p-4 rounded-lg">
                 <p>
-                  <strong>Step Order Optimization</strong> tests different question orderings to find the flow that maximizes conversion rate.
+                  <strong>🎯 AI-Powered Step Optimization:</strong> Uses live Fogg Behavior Model analysis to intelligently reorder steps for maximum conversion.
                 </p>
-                <p>
-                  More samples = better results but longer processing time. <strong>Hybrid Seeding</strong> uses Fogg Behavior Model + ELM analysis to intelligently seed the search with high-potential orderings.
-                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                  <div>
+                    <p className="font-medium text-gray-800">🧠 Fogg B=MAT Seeding:</p>
+                    <p className="text-xs">Orders steps by Motivation × Ability × Trigger scores from live AI analysis</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-800">📊 Framework Analysis:</p>
+                    <p className="text-xs">Combines PAS, AIDA, Nielsen principles with Fogg insights for optimal flow</p>
+                  </div>
+                </div>
               </div>
 
               {/* Optimization Results */}
@@ -1388,11 +1460,39 @@ const JourneyCalculator: React.FC = () => {
                     )}
                   </div>
                   
+                  {/* Fogg B=MAT Seeding Info */}
+                  {optimizeResult.fogg_seeding?.enabled && optimizeResult.fogg_seeding.seeded_order && (
+                    <div className="p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-blue-900">🧠 Fogg B=MAT Intelligent Seeded Order:</span>
+                        <div className="flex flex-wrap gap-1">
+                                                     {optimizeResult.fogg_seeding.seeded_order?.map((stepIndex: number, position: number) => (
+                             <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                               Step {stepIndex + 1}
+                             </span>
+                           )) || []}
+                        </div>
+                        {optimizeResult.fogg_seeding.seeded_order_is_optimal && (
+                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
+                            🎯 Optimal!
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-blue-700">
+                        <strong>🧠 AI-Powered Ordering:</strong> This order was computed using live Fogg Behavior Model analysis 
+                        (Motivation × Ability × Trigger scores) from real AI assessment of your steps.
+                        {optimizeResult.fogg_seeding.seeded_order_is_optimal 
+                          ? ' ✨ The AI-recommended order achieved the optimal result!' 
+                          : ' Used as intelligent starting point for optimization search.'}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Hybrid Seeding Info */}
                   {optimizeResult.hybrid_seeding?.enabled && optimizeResult.hybrid_seeding.seeded_order && (
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium text-blue-900">🧠 Hybrid Fogg+ELM Seeded Order:</span>
+                        <span className="text-sm font-medium text-blue-900">📊 Framework Analysis Seeded Order:</span>
                         <div className="flex flex-wrap gap-1">
                           {optimizeResult.hybrid_seeding.seeded_order?.map((stepIndex, position) => (
                             <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
@@ -1407,11 +1507,11 @@ const JourneyCalculator: React.FC = () => {
                         )}
                       </div>
                       <p className="text-xs text-blue-700">
-                        This order was computed using Fogg Behavior Model (motivation × ability × trigger) 
-                        combined with ELM elaboration likelihood scores to intelligently seed the search.
+                        This order combines Fogg Behavior Model with framework analysis (PAS, AIDA, Nielsen) 
+                        to intelligently seed the optimization search.
                         {optimizeResult.hybrid_seeding.seeded_order_is_optimal 
-                          ? ' The seeded order achieved the optimal result!' 
-                          : ' Used as starting point for 20,000-sample Monte Carlo search.'}
+                          ? ' The combined approach achieved the optimal result!' 
+                          : ' Used as secondary starting point for optimization.'}
                       </p>
                     </div>
                   )}

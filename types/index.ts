@@ -154,6 +154,11 @@ export interface OptimizeResult {
     order: number[];
     CR_total: number;
   }>;
+  fogg_seeding?: {
+    enabled: boolean;
+    seeded_order: number[] | null;
+    seeded_order_is_optimal: boolean;
+  };
   hybrid_seeding?: {
     enabled: boolean;
     seeded_order: number[] | null;
