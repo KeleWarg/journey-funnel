@@ -353,6 +353,16 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                                       <h4 className="text-lg font-semibold text-blue-900">
                                         Fogg B=MAT Analysis - Step {stepIndex + 1}
                                       </h4>
+                                      {foggStepAssessments?.isMock && (
+                                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                                          Mock Data
+                                        </span>
+                                      )}
+                                      {!foggStepAssessments?.isMock && (
+                                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                          Live AI Analysis
+                                        </span>
+                                      )}
                                     </div>
                                     
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

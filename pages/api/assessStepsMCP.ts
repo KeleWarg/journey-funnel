@@ -22,6 +22,9 @@ interface MCPStepAssessment {
   new_CR_s: number;
   cumulative_new_CR_s: number;
   suggestions: MCPFrameworkSuggestion[];
+  titleSuggestion?: string;
+  supportCopySuggestion?: string;
+  extraSupportSuggestions?: string[];
 }
 
 interface MCPOrderRecommendation {
@@ -196,6 +199,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       cumulative_cr *= new_CR_s;
       
+      // Get the first question text for generating suggestions
+      const firstQuestionText = step.questionTexts?.[0] || step.questions?.[0]?.question || `Question ${index + 1}`;
+      
       return {
         stepIndex: index,
         base_CR_s,
@@ -205,9 +211,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         suggestions: [
           {
             framework: 'PAS',
-            revisedText: `Optimized text for step ${index + 1}`,
-            rationale: 'Mock suggestion due to MCP unavailability'
+            revisedText: `Problem: Having trouble with ${firstQuestionText}? This is crucial for your next step. Solution: ${firstQuestionText}`,
+            rationale: 'Applied Problem-Agitate-Solve by identifying friction, emphasizing importance, then providing clear solution (Mock due to MCP unavailability)'
+          },
+          {
+            framework: 'Fogg',
+            revisedText: `✓ Quick & Easy: ${firstQuestionText} (This helps us personalize your experience)`,
+            rationale: 'Increased motivation with benefit statement, reduced ability barrier with "quick & easy" (Mock due to MCP unavailability)'
           }
+        ],
+        // Add the missing additional text field suggestions
+        titleSuggestion: `Step ${index + 1}: ${firstQuestionText.split('?')[0] || 'Information'}`,
+        supportCopySuggestion: 'This information helps us provide you with a better experience.',
+        extraSupportSuggestions: [
+          '95% of users complete this step in under 30 seconds',
+          'Your data is securely encrypted and never shared'
         ]
       };
     });

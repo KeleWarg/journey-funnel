@@ -12,6 +12,14 @@ from typing import Dict, List, Any
 from datetime import datetime
 import random
 
+# Load environment variables from .env.local first
+try:
+    from dotenv import load_dotenv
+    load_dotenv('.env.local')
+    load_dotenv()  # Also load .env if it exists
+except ImportError:
+    pass  # dotenv not available, continue without it
+
 try:
     import openai
     from openai import OpenAI
@@ -603,9 +611,12 @@ async def main():
     logger.info(f"🔑 OpenAI integration: {'✅ Enabled' if openai_client else '❌ Disabled'}")
     
     # Check if running in HTTP mode (Cloud environment)
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8002))  # Use port 8002 to avoid conflict with Next.js on 3001
     
-    if os.environ.get("PORT"):
+    # Force STDIO mode for local development unless explicitly set to HTTP mode
+    force_http = os.environ.get("MCP_FORCE_HTTP", "false").lower() == "true"
+    
+    if os.environ.get("PORT") and force_http:
         # HTTP mode for cloud deployment
         from starlette.applications import Starlette
         from starlette.routing import Route
