@@ -16,6 +16,30 @@ const FRAMEWORK_DESCRIPTIONS = {
   // Add any others here (e.g. "nielsen_usability" if you choose)
 } as const;
 
+export interface AssessQuestionRequest extends NextApiRequest {
+  body: {
+    questions: Array<{
+      questionTitle: string;
+      sampleResponses: string[] | string;
+    }>;
+    frameworks: string[];
+  };
+}
+
+export interface FrameworkAssessment {
+  framework: string;
+  issues: string[];
+  suggestions: string[];
+  rewrittenQuestion?: string;
+}
+
+export interface AssessQuestionResponse {
+  assessments: Array<{
+    questionTitle: string;
+    frameworkAssessments: FrameworkAssessment[];
+  }>;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -23,15 +47,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { questionTitle, sampleResponses, frameworks } = req.body;
+    const { questions, frameworks } = req.body;
 
     // 1) Validate inputs
-    if (!questionTitle || typeof questionTitle !== "string") {
-      res.status(400).json({ error: "questionTitle (string) is required" });
-      return;
-    }
-    if (sampleResponses == null) {
-      res.status(400).json({ error: "sampleResponses is required" });
+    if (!Array.isArray(questions) || questions.length === 0) {
+      res.status(400).json({ error: "questions (nonempty array) is required" });
       return;
     }
     if (!Array.isArray(frameworks) || frameworks.length === 0) {
@@ -45,24 +65,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .map((f: string) => `• ${FRAMEWORK_DESCRIPTIONS[f as keyof typeof FRAMEWORK_DESCRIPTIONS]}`)
       .join("\n");
 
-    // 3) Reformat sampleResponses into numbered bullet list (max 20)
-    let responsesText = "";
-    if (Array.isArray(sampleResponses)) {
-      responsesText = sampleResponses
-        .slice(0, 20)
-        .map((r: string, i: number) => `${i + 1}. ${r}`)
-        .join("\n");
-    } else if (typeof sampleResponses === "string") {
-      const arr = sampleResponses
-        .split(/\r?\n|,/)
-        .map((x) => x.trim())
-        .filter((x) => x.length > 0)
-        .slice(0, 20);
-      responsesText = arr.map((r, i) => `${i + 1}. ${r}`).join("\n");
-    }
+    // 3) Process all questions in parallel
+    const assessments = await Promise.all(questions.map(async (question) => {
+      const { questionTitle, sampleResponses } = question;
 
-    // 4) Construct the system prompt
-    const systemPrompt = `
+      // Validate individual question
+      if (!questionTitle || typeof questionTitle !== "string") {
+        throw new Error(`Invalid questionTitle for question: ${questionTitle}`);
+      }
+
+      // Reformat sampleResponses into numbered bullet list (max 20)
+      let responsesText = "";
+      if (Array.isArray(sampleResponses)) {
+        responsesText = sampleResponses
+          .slice(0, 20)
+          .map((r: string, i: number) => `${i + 1}. ${r}`)
+          .join("\n");
+      } else if (typeof sampleResponses === "string") {
+        const arr = sampleResponses
+          .split(/\r?\n|,/)
+          .map((x) => x.trim())
+          .filter((x) => x.length > 0)
+          .slice(0, 20);
+        responsesText = arr.map((r, i) => `${i + 1}. ${r}`).join("\n");
+      }
+
+      // 4) Construct the system prompt
+      const systemPrompt = `
 You are an expert UX psychologist and copy-editor. Your task is to evaluate a single survey/form question, given the question text and optional sample responses. You will apply the following psychological frameworks:
 
 ${chosenFrameworks}
@@ -85,8 +114,8 @@ Format your response as strictly valid JSON with this shape:
 }
 `.trim();
 
-    // 5) Construct the user prompt
-    const userPrompt = `
+      // 5) Construct the user prompt
+      const userPrompt = `
 Question Title:
 "${questionTitle}"
 
@@ -94,38 +123,39 @@ Sample User Responses (up to 20):
 ${responsesText}
 `.trim();
 
-    // 6) Call OpenAI's chat endpoint (using gpt-4o-mini or gpt-4o)
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // or "gpt-4o" if accessible
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 600,
-      temperature: 0.7,
-    });
-
-    const raw = completion.choices[0]?.message?.content?.trim();
-    if (!raw) {
-      res.status(500).json({ error: "No response from OpenAI" });
-      return;
-    }
-
-    // 7) Try to parse as JSON
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (parseError) {
-      res.status(200).json({
-        error: "Failed to parse JSON from LLM. Here's the raw output:",
-        raw,
+      // 6) Call OpenAI's chat endpoint
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: 600,
+        temperature: 0.7,
       });
-      return;
-    }
 
-    // 8) Return the parsed JSON
-    res.status(200).json(parsed);
-  } catch (err: unknown) {
+      const raw = completion.choices[0]?.message?.content?.trim();
+      if (!raw) {
+        throw new Error("No response from OpenAI");
+      }
+
+      // 7) Parse JSON response
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (parseError: unknown) {
+        throw new Error(`Failed to parse JSON from LLM: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      }
+
+      return {
+        questionTitle,
+        frameworkAssessments: parsed.frameworkAssessments
+      };
+    }));
+
+    // 8) Return all assessments
+    res.status(200).json({ assessments });
+  } catch (err) {
     console.error("Error in /api/assessQuestion:", err);
     res.status(500).json({ 
       error: "LLM assessment failed", 

@@ -27,10 +27,16 @@ export interface LLMStepAssessment {
 }
 
 export interface LLMAssessmentResult {
-  assessments: LLMStepAssessment[];
-  baseline_CR_total: number;
-  predicted_CR_total: number;
-  uplift_total: number;
+  assessments: Array<{
+    questionTitle: string;
+    frameworkAssessments: Array<{
+      framework: string;
+      issues: string[];
+      suggestions: string[];
+      rewrittenQuestion?: string;
+    }>;
+  }>;
+  timestamp: string;
 }
 
 export interface FoggRecommendation {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useToast } from '@hooks/use-toast';
 import Link from 'next/link';
 import { Button } from '@components/ui/button';
@@ -84,6 +84,38 @@ const difficultyOptions = [
   { value: 4, label: '4 - Difficult' },
   { value: 5, label: '5 - Very difficult' }
 ];
+
+interface CachedAssessment {
+  timestamp: number;
+  data: any;
+}
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const BATCH_SIZE = 5; // Process 5 questions at a time
+
+const useAssessmentCache = () => {
+  const [cache, setCache] = useState<Record<string, CachedAssessment>>({});
+
+  const getCachedAssessment = useCallback((key: string) => {
+    const cached = cache[key];
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+    return null;
+  }, [cache]);
+
+  const setCachedAssessment = useCallback((key: string, data: any) => {
+    setCache(prev => ({
+      ...prev,
+      [key]: {
+        timestamp: Date.now(),
+        data
+      }
+    }));
+  }, []);
+
+  return { getCachedAssessment, setCachedAssessment };
+};
 
 const JourneyCalculator: React.FC = () => {
   const { toast } = useToast();
@@ -643,6 +675,8 @@ const JourneyCalculator: React.FC = () => {
     }
   }, [buildPayload, numSamples, toast, backsolveResult, hybridSeeding, llmAssessmentResult, foggStepAssessments]);
 
+  const { getCachedAssessment, setCachedAssessment } = useAssessmentCache();
+
   const runLLMAssessment = useCallback(async () => {
     try {
       setIsAssessing(true);
@@ -666,82 +700,81 @@ const JourneyCalculator: React.FC = () => {
         }))
       };
 
-      // Try MCP assessment with timeout and fallback
-      let data;
-      try {
-        console.log('Attempting MCP assessment...');
-        
-        // Create a timeout promise (45 seconds to be safe)
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('MCP assessment timeout')), 45000)
-        );
-        
-        const fetchPromise = fetch('/api/assessStepsMCP', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(assessmentPayload)
-        });
-        
-        const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          
-          // Special handling for API key not configured
-          if (errorData.error === 'OpenAI API key not configured') {
-            throw new Error('Please add OPENAI_API_KEY to your .env.local file to enable LLM assessments');
-          }
-          
-          const errorMessage = errorData?.error || errorData?.details || 'MCP assessment failed';
-          throw new Error(String(errorMessage));
-        }
-
-        data = await response.json();
-        console.log('MCP assessment successful');
-        
-      } catch (mcpError) {
-        console.warn('MCP assessment failed, falling back to basic assessment:', mcpError);
-        
-        // Fallback to basic assessment without MCP
-        const fallbackResponse = await fetch('/api/assessSteps', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(assessmentPayload)
-        });
-
-        if (!fallbackResponse.ok) {
-          const errorData = await fallbackResponse.json().catch(() => ({ error: 'Unknown error' }));
-          const errorMessage = errorData?.error || errorData?.details || 'Assessment failed completely';
-          throw new Error(String(errorMessage));
-        }
-
-        data = await fallbackResponse.json();
-        console.log('Fallback assessment successful');
-        
-        toast({
-          title: "Fallback Assessment Used",
-          description: "MCP server timed out, used basic assessment instead",
-          variant: "default"
-        });
+      // Process questions in batches
+      const allQuestions = steps.flatMap(step => step.questions);
+      const batches = [];
+      
+      for (let i = 0; i < allQuestions.length; i += BATCH_SIZE) {
+        const batch = allQuestions.slice(i, i + BATCH_SIZE);
+        batches.push(batch);
       }
-      setLlmAssessmentResult(data);
+
+      const results = [];
+      for (const batch of batches) {
+        // Check cache for each question in batch
+        const uncachedQuestions = batch.filter(q => !getCachedAssessment(q.title));
+        
+        if (uncachedQuestions.length > 0) {
+          // Only assess uncached questions
+          const response = await fetch('/api/assessQuestion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questions: uncachedQuestions.map(q => ({
+                questionTitle: q.title,
+                sampleResponses: []
+              })),
+              frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini']
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Assessment failed: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+          
+          // Cache new results
+          data.assessments.forEach((assessment: any) => {
+            setCachedAssessment(assessment.questionTitle, assessment);
+          });
+
+          results.push(...data.assessments);
+        } else {
+          // Use cached results
+          batch.forEach(q => {
+            const cached = getCachedAssessment(q.title);
+            if (cached) {
+              results.push(cached);
+            }
+          });
+        }
+      }
+
+      // Update state with all results
+      setLlmAssessmentResult({
+        assessments: results,
+        timestamp: new Date().toISOString()
+      });
 
       toast({
-        title: "LLM Assessment Complete",
-        description: `Generated recommendations for ${data.assessments.length} steps using MCP analysis`
+        title: "Assessment Complete",
+        description: `Analyzed ${allQuestions.length} questions using multiple frameworks`,
+        duration: 3000,
       });
 
     } catch (error) {
-      console.error('LLM Assessment error:', error);
+      console.error("Error in LLM assessment:", error);
       toast({
-        title: "LLM Assessment Failed",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive"
+        title: "Assessment Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive",
+        duration: 5000,
       });
     } finally {
       setIsAssessing(false);
     }
-  }, [steps, simulationData, toast]);
+  }, [steps, simulationData, getCachedAssessment, setCachedAssessment]);
 
   const runFoggStepAssessment = useCallback(async () => {
     setIsFoggStepAssessing(true);
