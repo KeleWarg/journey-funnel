@@ -323,10 +323,12 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                             {/* LLM Improvement */}
                             <td className="border-2 border-gray-800 px-4 py-3 text-center text-sm font-mono font-semibold text-purple-700">
                               {(() => {
-                                if (!llmAssessmentResult) return '—';
-                                const assessment = llmAssessmentResult.assessments.find(a => a.stepIndex === stepIndex);
-                                if (!assessment) return '—';
-                                return `+${(assessment.estimated_uplift * 100).toFixed(1)}pp`;
+                                if (!llmAssessmentResult || !llmAssessmentResult.assessments) return '—';
+                                // LLM assessments are question-based, not step-based, so show count of assessments
+                                const questionCount = step.questions.length;
+                                const assessmentCount = llmAssessmentResult.assessments.length;
+                                if (assessmentCount === 0) return '—';
+                                return `${assessmentCount} analysis`;
                               })()}
                             </td>
 
@@ -410,50 +412,56 @@ const AnalysisTabsSection: React.FC<AnalysisTabsSectionProps> = ({
                                       {/* Right Column: Recommendations */}
                                       <div className="space-y-4">
                                         <h5 className="font-semibold text-gray-900">Recommendations</h5>
-                                        {foggAssessment.recommendations.map((rec, idx) => (
-                                          <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <span className={`w-3 h-3 rounded-full ${
-                                                rec.type === 'content_rewrite' ? 'bg-green-500' :
-                                                rec.type === 'interaction_improvement' ? 'bg-blue-500' :
-                                                rec.type === 'support_content' ? 'bg-purple-500' : 'bg-orange-500'
-                                              }`}></span>
-                                              <span className="font-semibold text-gray-900">{rec.title}</span>
-                                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                                rec.type === 'content_rewrite' ? 'bg-green-100 text-green-700' :
-                                                rec.type === 'interaction_improvement' ? 'bg-blue-100 text-blue-700' :
-                                                rec.type === 'support_content' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
-                                              }`}>
-                                                {rec.type.replace('_', ' ')}
-                                              </span>
+                                        {foggAssessment.recommendations && foggAssessment.recommendations.length > 0 ? (
+                                          foggAssessment.recommendations.map((rec, idx) => (
+                                            <div key={idx} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <span className={`w-3 h-3 rounded-full ${
+                                                  rec.type === 'content_rewrite' ? 'bg-green-500' :
+                                                  rec.type === 'interaction_improvement' ? 'bg-blue-500' :
+                                                  rec.type === 'support_content' ? 'bg-purple-500' : 'bg-orange-500'
+                                                }`}></span>
+                                                <span className="font-semibold text-gray-900">{rec.title}</span>
+                                                <span className={`text-xs px-2 py-1 rounded-full ${
+                                                  rec.type === 'content_rewrite' ? 'bg-green-100 text-green-700' :
+                                                  rec.type === 'interaction_improvement' ? 'bg-blue-100 text-blue-700' :
+                                                  rec.type === 'support_content' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
+                                                }`}>
+                                                  {rec.type.replace('_', ' ')}
+                                                </span>
+                                              </div>
+                                              <p className="text-gray-700 text-sm mb-3">{rec.description}</p>
+                                              
+                                              {/* Before/After for content rewrites */}
+                                              {rec.before && rec.after && (
+                                                <div className="bg-white rounded p-3 mb-3 space-y-2">
+                                                  <div className="text-sm">
+                                                    <span className="font-semibold text-red-700">Before:</span>
+                                                    <span className="ml-2 text-gray-700">{rec.before}</span>
+                                                  </div>
+                                                  <div className="text-sm">
+                                                    <span className="font-semibold text-green-700">After:</span>
+                                                    <span className="ml-2 text-gray-700">{rec.after}</span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              
+                                              {/* Implementation guidance */}
+                                              {rec.implementation && (
+                                                <div className="bg-yellow-50 rounded p-3 border border-yellow-200">
+                                                  <div className="text-sm">
+                                                    <span className="font-semibold text-yellow-800">Implementation:</span>
+                                                    <span className="ml-2 text-yellow-700">{rec.implementation}</span>
+                                                  </div>
+                                                </div>
+                                              )}
                                             </div>
-                                            <p className="text-gray-700 text-sm mb-3">{rec.description}</p>
-                                            
-                                            {/* Before/After for content rewrites */}
-                                            {rec.before && rec.after && (
-                                              <div className="bg-white rounded p-3 mb-3 space-y-2">
-                                                <div className="text-sm">
-                                                  <span className="font-semibold text-red-700">Before:</span>
-                                                  <span className="ml-2 text-gray-700">{rec.before}</span>
-                                                </div>
-                                                <div className="text-sm">
-                                                  <span className="font-semibold text-green-700">After:</span>
-                                                  <span className="ml-2 text-gray-700">{rec.after}</span>
-                                                </div>
-                                              </div>
-                                            )}
-                                            
-                                            {/* Implementation guidance */}
-                                            {rec.implementation && (
-                                              <div className="bg-yellow-50 rounded p-3 border border-yellow-200">
-                                                <div className="text-sm">
-                                                  <span className="font-semibold text-yellow-800">Implementation:</span>
-                                                  <span className="ml-2 text-yellow-700">{rec.implementation}</span>
-                                                </div>
-                                              </div>
-                                            )}
+                                          ))
+                                        ) : (
+                                          <div className="text-center py-4 text-gray-500">
+                                            <p className="text-sm">No recommendations available for this step</p>
                                           </div>
-                                        ))}
+                                        )}
                                       </div>
                                     </div>
                                   </div>
