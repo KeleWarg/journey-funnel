@@ -52,13 +52,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('🧠 Starting Fogg Behavior Model analysis...');
 
-    // Step 1: Call LLM for Fogg assessments (mock implementation for now)
-    // In real implementation, this would call: await manus.callFunction("assessSteps", { steps, frameworks: ["Fogg"] })
-    const assessments = steps.map((step, index) => ({
-      stepIndex: index,
-      motivation_score: Math.random() * 2 + 3, // 3-5 range (higher end for better motivation)
-      trigger_score: Math.random() * 2 + 3,    // 3-5 range (higher end for better triggers)
-    }));
+    // Step 1: Calculate Fogg assessments based on step characteristics
+    // Uses heuristics based on question complexity, invasiveness, and observed performance
+    const assessments = steps.map((step, index) => {
+      // Calculate average invasiveness and difficulty for motivation
+      const avgInvasiveness = step.questions.reduce((sum, q) => sum + q.invasiveness, 0) / step.questions.length;
+      const avgDifficulty = step.questions.reduce((sum, q) => sum + q.difficulty, 0) / step.questions.length;
+      
+      // Motivation: Higher when questions are less invasive and observed CR is good
+      // Scale: 1-5, where 5 = high motivation (low invasiveness, good performance)
+      const motivationFromInvasiveness = Math.max(1, Math.min(5, 6 - avgInvasiveness));
+      const motivationFromPerformance = Math.max(1, Math.min(5, step.observedCR * 5));
+      const motivation_score = (motivationFromInvasiveness + motivationFromPerformance) / 2;
+      
+      // Trigger: Higher when questions are simpler and have boost elements
+      // Scale: 1-5, where 5 = strong trigger (simple questions, good boosts)
+      const triggerFromSimplicity = Math.max(1, Math.min(5, 6 - avgDifficulty));
+      const triggerFromBoosts = Math.max(1, Math.min(5, 1 + (step.boosts || 0) * 0.8));
+      const trigger_score = (triggerFromSimplicity + triggerFromBoosts) / 2;
+      
+      return {
+        stepIndex: index,
+        motivation_score,
+        trigger_score,
+      };
+    });
 
     console.log('📊 Generated Fogg assessments for', steps.length, 'steps');
 
@@ -147,17 +165,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log('🧠 Fogg reordered CR:', (fogg_CR_total * 100).toFixed(2) + '%');
 
-    // Step 5: Calculate uplift and return both the order and its predicted CR
+    // Step 5: Calculate uplift based on actual performance difference
     const uplift_pp = (fogg_CR_total - baseline_CR_total) * 100;
 
-    // Add bonus based on high Fogg scores (motivation/trigger effectiveness)
-    const maxPossibleScore = 125; // 5 * 5 * 5
-    const avgFoggScore = foggMetrics.reduce((sum, m) => sum + m.fogg_score, 0) / foggMetrics.length;
-    const scorePercentage = avgFoggScore / maxPossibleScore;
-    const foggBonus = scorePercentage * 1.5; // Up to 1.5pp bonus for high Fogg scores
-
-    const finalUplift = uplift_pp + foggBonus;
-    const finalCR = baseline_CR_total * (1 + finalUplift / 100); // Removed 0.95 clamp per YAML patch - allow CR_total > baseline
+    // Use the actual calculated CR from the reordered steps
+    // No artificial bonuses - let the actual simulation results speak for themselves
+    const finalCR = fogg_CR_total;
+    const finalUplift = uplift_pp;
 
     console.log('✅ Fogg analysis complete:', {
       baseline: (baseline_CR_total * 100).toFixed(2) + '%',
