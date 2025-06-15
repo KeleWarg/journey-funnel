@@ -19,11 +19,23 @@ const localStorageMock = {
   setItem: jest.fn(),
   removeItem: jest.fn(),
   clear: jest.fn(),
+  length: 0,
+  key: jest.fn()
 };
-global.localStorage = localStorageMock;
+Object.defineProperty(global, 'localStorage', {
+  value: localStorageMock,
+  writable: true
+});
+Object.defineProperty(global, 'sessionStorage', {
+  value: localStorageMock,
+  writable: true
+});
 
 // Mock environment variables
-process.env.NODE_ENV = 'test';
+Object.defineProperty(process.env, 'NODE_ENV', {
+  value: 'test',
+  writable: true
+});
 
 // Timeout for async operations
 jest.setTimeout(30000);

@@ -759,7 +759,7 @@ const JourneyCalculator: React.FC = () => {
 
       toast({
         title: "Assessment Complete",
-        description: `Analyzed ${allQuestions.length} questions using multiple frameworks`,
+        description: `Analyzed ${allQuestions.length} questions using PAS, Fogg, Nielsen, AIDA, and Cialdini frameworks`,
         duration: 3000,
       });
 
@@ -940,8 +940,8 @@ const JourneyCalculator: React.FC = () => {
       if (response.ok) {
         setEnhancedMcpResult(data);
         toast({
-          title: "Enhanced MCP Analysis Complete",
-          description: `Analyzed ${data.baseline_metrics?.frameworks_analyzed || 0} framework variants using ${data.baseline_metrics?.algorithm_used || 'optimization'}`
+          title: "Enhanced MCP Analysis Complete", 
+          description: `Analyzed ${data.baseline_metrics?.frameworks_analyzed || 9} framework variants (PAS, Fogg, Nielsen, AIDA, Cialdini, SCARF, JTBD, TOTE, ELM) using ${data.baseline_metrics?.algorithm_used || 'optimization'}`
         });
       } else {
         const errorMessage = data?.details || 'Enhanced analysis failed';
