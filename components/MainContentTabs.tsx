@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@components/ui/tabs';
-import { ListIcon, FileTextIcon } from 'lucide-react';
+import { Button } from '@components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { ListIcon, FileTextIcon, Upload } from 'lucide-react';
 import StepsEditor from '@components/StepsEditor';
 import LandingPageEditor from '@components/LandingPageEditor';
 import LandingPageAnalysisPanel from '@components/LandingPageAnalysisPanel';
+import SpreadsheetUpload from '@components/SpreadsheetUpload';
 import { StepWithText, BoostElement } from '../types';
 
 interface LandingPageFold {
@@ -25,6 +28,17 @@ interface LandingPageAnalysisResult {
   topRecommendations?: string[];
 }
 
+interface ParsedStepData {
+  stepName: string;
+  conversionRate: number;
+  questions: Array<{
+    title: string;
+    input_type: string;
+    invasiveness: number;
+    difficulty: number;
+  }>;
+}
+
 interface MainContentTabsProps {
   // Journey Steps props
   steps: StepWithText[];
@@ -42,6 +56,7 @@ interface MainContentTabsProps {
   isClassifyingBoosts: boolean;
   categoryTitle: string;
   onCategoryTitleChange: (title: string) => void;
+  onImportSpreadsheetData?: (data: ParsedStepData[]) => void;
   
   // Landing Page props
   landingPageContent: LandingPageContent;
@@ -71,6 +86,7 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   isClassifyingBoosts,
   categoryTitle,
   onCategoryTitleChange,
+  onImportSpreadsheetData,
   
   // Landing Page props
   landingPageContent,
@@ -83,6 +99,7 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   journeyStepsAnalysisSections
 }) => {
   const [activeTab, setActiveTab] = useState('journey_steps');
+  const [isSpreadsheetDialogOpen, setIsSpreadsheetDialogOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -100,10 +117,37 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
 
         <TabsContent value="journey_steps" className="space-y-6">
           <div>
-            <h3 className="text-lg font-semibold mb-2">Journey Steps Configuration</h3>
-            <p className="text-gray-600 mb-4">
-              Build your multi-step form funnel with questions that can be reordered and optimized for maximum conversion.
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Journey Steps Configuration</h3>
+                <p className="text-gray-600">
+                  Build your multi-step form funnel with questions that can be reordered and optimized for maximum conversion.
+                </p>
+              </div>
+              
+              {onImportSpreadsheetData && (
+                <Dialog open={isSpreadsheetDialogOpen} onOpenChange={setIsSpreadsheetDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Import from Spreadsheet
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Import Funnel Data from Spreadsheet</DialogTitle>
+                    </DialogHeader>
+                    <SpreadsheetUpload
+                      onDataImported={(data) => {
+                        onImportSpreadsheetData(data);
+                        setIsSpreadsheetDialogOpen(false);
+                      }}
+                      onClose={() => setIsSpreadsheetDialogOpen(false)}
+                    />
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
             
             <StepsEditor
               steps={steps}

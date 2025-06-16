@@ -396,6 +396,51 @@ const LeadGenFunnelReviewer: React.FC = () => {
     }
   };
 
+  // Spreadsheet Import Handler
+  const handleSpreadsheetImport = useCallback((importedData: any[]) => {
+    try {
+      // Convert imported data to steps format
+      const newSteps: StepWithText[] = importedData.map((data, index) => ({
+        id: `imported-step-${index}`,
+        questions: data.questions.map((q: any, qIndex: number) => ({
+          id: `imported-question-${index}-${qIndex}`,
+          title: q.title,
+          input_type: q.input_type,
+          invasiveness: q.invasiveness,
+          difficulty: q.difficulty
+        })),
+        questionTexts: data.questions.map((q: any) => q.title), // Add required questionTexts field
+        observedCR: data.conversionRate,
+        boosts: 0,
+        boostElements: []
+      }));
+
+      // Replace existing steps with imported ones
+      setSteps(newSteps);
+      
+      // Clear any existing analysis results since we have new data
+      setSimulationData(null);
+      setLlmAssessmentResult(null);
+      setMcpFunnelResult(null);
+      setEnhancedMcpResult(null);
+      setBacksolveResult(null);
+      setFoggStepAssessments(null);
+      
+      toast({
+        title: "Spreadsheet Data Imported",
+        description: `Successfully imported ${newSteps.length} steps from spreadsheet. You can now run analysis on this data.`
+      });
+      
+    } catch (error) {
+      console.error('Spreadsheet import error:', error);
+      toast({
+        title: "Import Failed",
+        description: error instanceof Error ? error.message : "Could not import spreadsheet data",
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
+
   // Landing Page Analysis Function
   const runLandingPageAnalysis = useCallback(async () => {
     // Validate that at least one fold has required content
@@ -1371,6 +1416,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
           isClassifyingBoosts={isClassifyingBoosts}
           categoryTitle={categoryTitle}
           onCategoryTitleChange={setCategoryTitle}
+          onImportSpreadsheetData={handleSpreadsheetImport}
           
           // Landing Page props
           landingPageContent={landingPageContent}
