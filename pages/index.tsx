@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import Head from 'next/head';
 import { useToast } from '@hooks/use-toast';
 import Link from 'next/link';
 import { Button } from '@components/ui/button';
@@ -118,14 +119,17 @@ const useAssessmentCache = () => {
 };
 
 // Landing Page Content interface
-interface LandingPageContent {
+interface LandingPageFold {
+  id: string;
   headline: string;
   subheadline?: string;
-  bodyText: string;
   cta: string;
-  supportingCopy?: string;
-  valueProposition?: string;
+  textBoxes: string[];
   socialProof?: string;
+}
+
+interface LandingPageContent {
+  folds: LandingPageFold[];
 }
 
 interface LandingPageAnalysisResult {
@@ -134,7 +138,7 @@ interface LandingPageAnalysisResult {
   topRecommendations?: string[];
 }
 
-const JourneyCalculator: React.FC = () => {
+const LeadGenFunnelReviewer: React.FC = () => {
   const { toast } = useToast();
   
   // State
@@ -188,13 +192,7 @@ const JourneyCalculator: React.FC = () => {
 
   // Landing Page State
   const [landingPageContent, setLandingPageContent] = useState<LandingPageContent>({
-    headline: '',
-    subheadline: '',
-    bodyText: '',
-    cta: '',
-    supportingCopy: '',
-    valueProposition: '',
-    socialProof: ''
+    folds: []
   });
   const [isAnalyzingLandingPage, setIsAnalyzingLandingPage] = useState(false);
   const [landingPageAnalysisResult, setLandingPageAnalysisResult] = useState<LandingPageAnalysisResult | null>(null);
@@ -400,10 +398,18 @@ const JourneyCalculator: React.FC = () => {
 
   // Landing Page Analysis Function
   const runLandingPageAnalysis = useCallback(async () => {
-    if (!landingPageContent.headline || !landingPageContent.bodyText || !landingPageContent.cta || !categoryTitle.trim()) {
+    // Validate that at least one fold has required content
+    const hasValidFold = landingPageContent.folds.length > 0 && 
+                        landingPageContent.folds.some(fold => 
+                          fold.headline?.trim() && 
+                          fold.cta?.trim() && 
+                          fold.textBoxes?.some(text => text.trim())
+                        );
+
+    if (!hasValidFold || !categoryTitle.trim()) {
       toast({
         title: "Missing Required Fields",
-        description: "Please complete headline, body text, CTA, and category title before running analysis",
+        description: "Please create at least one fold with headline, CTA, and text content, plus category title before running analysis",
         variant: "destructive"
       });
       return;
@@ -1283,23 +1289,28 @@ const JourneyCalculator: React.FC = () => {
   }, [runSimulationInternal, runBacksolveInternal, updateSimulationWithParams, toast]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
+      <Head>
+        <title>Lead Gen Funnel Reviewer</title>
+        <meta name="description" content="Optimize your lead generation funnels and landing pages with AI-powered analysis" />
+      </Head>
+      <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Journey Calculator</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Build, simulate, back-solve, and optimize your multi-step form funnel
-              </p>
+              <h1 className="text-3xl font-bold text-gray-900">Lead Gen Funnel Reviewer</h1>
+                              <p className="mt-1 text-sm text-gray-500">
+                  Optimize your lead generation funnels and landing pages with AI-powered analysis
+                </p>
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="journey-calculator-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+              <main className="lead-gen-funnel-reviewer-content max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
         {/* Current Constants Section */}
         <CurrentConstantsSection {...{
@@ -1713,7 +1724,7 @@ const JourneyCalculator: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between text-sm text-gray-500">
-            <p>&copy; {new Date().getFullYear()} Journey Calculator. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Lead Gen Funnel Reviewer. All rights reserved.</p>
             <div className="flex space-x-4">
               <Link href="/docs" className="hover:text-gray-700">Documentation</Link>
               <span>v1.0.0</span>
@@ -1722,7 +1733,8 @@ const JourneyCalculator: React.FC = () => {
         </div>
       </footer>
     </div>
+    </>
   );
 };
 
-export default JourneyCalculator;
+export default LeadGenFunnelReviewer;

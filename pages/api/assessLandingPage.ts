@@ -1,13 +1,16 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 
-interface LandingPageContent {
+interface LandingPageFold {
+  id: string;
   headline: string;
   subheadline?: string;
-  bodyText: string;
   cta: string;
-  supportingCopy?: string;
-  valueProposition?: string;
+  textBoxes: string[];
   socialProof?: string;
+}
+
+interface LandingPageContent {
+  folds: LandingPageFold[];
 }
 
 interface LandingPageFrameworkAssessment {
@@ -17,15 +20,18 @@ interface LandingPageFrameworkAssessment {
   rewrittenContent?: {
     headline?: string;
     subheadline?: string;
-    bodyText?: string;
+    textBoxes?: string[];
     cta?: string;
-    valueProposition?: string;
+    socialProof?: string;
   };
   score?: number;
 }
 
 interface LandingPageContentAssessment {
-  contentType: 'headline' | 'subheadline' | 'bodyText' | 'cta' | 'valueProposition' | 'supportingCopy' | 'socialProof';
+  foldId: string;
+  foldIndex: number;
+  contentType: 'headline' | 'subheadline' | 'textBox' | 'cta' | 'socialProof';
+  contentIndex?: number; // For textBoxes
   originalContent: string;
   frameworkAssessments: LandingPageFrameworkAssessment[];
 }
@@ -40,28 +46,82 @@ const analyzeLandingPageContent = async (
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 2000));
   
-  const contentElements = [
-    { type: 'headline' as const, content: content.headline },
-    { type: 'subheadline' as const, content: content.subheadline || '' },
-    { type: 'bodyText' as const, content: content.bodyText },
-    { type: 'cta' as const, content: content.cta },
-    { type: 'valueProposition' as const, content: content.valueProposition || '' },
-    { type: 'supportingCopy' as const, content: content.supportingCopy || '' },
-    { type: 'socialProof' as const, content: content.socialProof || '' }
-  ].filter(element => element.content.trim().length > 0);
+  const assessments: LandingPageContentAssessment[] = [];
 
-  const assessments: LandingPageContentAssessment[] = contentElements.map(element => {
-    const frameworkAssessments: LandingPageFrameworkAssessment[] = frameworks.map(framework => {
-      // Generate framework-specific analysis based on content type and framework
-      const analysis = generateFrameworkAnalysis(framework, element.type, element.content, categoryTitle);
-      return analysis;
+  // Process each fold
+  content.folds.forEach((fold, foldIndex) => {
+    // Process headline
+    if (fold.headline.trim()) {
+      const frameworkAssessments = frameworks.map(framework => 
+        generateFrameworkAnalysis(framework, 'headline', fold.headline, categoryTitle, foldIndex)
+      );
+      assessments.push({
+        foldId: fold.id,
+        foldIndex,
+        contentType: 'headline',
+        originalContent: fold.headline,
+        frameworkAssessments
+      });
+    }
+
+    // Process subheadline
+    if (fold.subheadline?.trim()) {
+      const frameworkAssessments = frameworks.map(framework => 
+        generateFrameworkAnalysis(framework, 'subheadline', fold.subheadline!, categoryTitle, foldIndex)
+      );
+      assessments.push({
+        foldId: fold.id,
+        foldIndex,
+        contentType: 'subheadline',
+        originalContent: fold.subheadline,
+        frameworkAssessments
+      });
+    }
+
+    // Process CTA
+    if (fold.cta.trim()) {
+      const frameworkAssessments = frameworks.map(framework => 
+        generateFrameworkAnalysis(framework, 'cta', fold.cta, categoryTitle, foldIndex)
+      );
+      assessments.push({
+        foldId: fold.id,
+        foldIndex,
+        contentType: 'cta',
+        originalContent: fold.cta,
+        frameworkAssessments
+      });
+    }
+
+    // Process text boxes
+    fold.textBoxes.forEach((textBox, textIndex) => {
+      if (textBox.trim()) {
+        const frameworkAssessments = frameworks.map(framework => 
+          generateFrameworkAnalysis(framework, 'textBox', textBox, categoryTitle, foldIndex, textIndex)
+        );
+        assessments.push({
+          foldId: fold.id,
+          foldIndex,
+          contentType: 'textBox',
+          contentIndex: textIndex,
+          originalContent: textBox,
+          frameworkAssessments
+        });
+      }
     });
 
-    return {
-      contentType: element.type,
-      originalContent: element.content,
-      frameworkAssessments
-    };
+    // Process social proof
+    if (fold.socialProof?.trim()) {
+      const frameworkAssessments = frameworks.map(framework => 
+        generateFrameworkAnalysis(framework, 'socialProof', fold.socialProof!, categoryTitle, foldIndex)
+      );
+      assessments.push({
+        foldId: fold.id,
+        foldIndex,
+        contentType: 'socialProof',
+        originalContent: fold.socialProof,
+        frameworkAssessments
+      });
+    }
   });
 
   // Calculate overall score
@@ -87,44 +147,49 @@ const generateFrameworkAnalysis = (
   framework: string, 
   contentType: string, 
   content: string, 
-  categoryTitle: string
+  categoryTitle: string,
+  foldIndex: number,
+  textBoxIndex?: number
 ): LandingPageFrameworkAssessment => {
   const issues: string[] = [];
   const suggestions: string[] = [];
   let rewrittenContent: any = {};
   let score = 3.5;
 
+  const foldContext = `Fold ${foldIndex + 1}`;
+  const textBoxContext = textBoxIndex !== undefined ? ` (Text Box ${textBoxIndex + 1})` : '';
+
   switch (framework) {
     case 'PAS':
       if (contentType === 'headline') {
         if (!content.toLowerCase().includes('problem') && !content.includes('?')) {
-          issues.push('Headline doesn\'t clearly identify the problem');
-          suggestions.push('Start with a problem-focused question or statement');
+          issues.push(`${foldContext}: Headline doesn't clearly identify the problem`);
+          suggestions.push(`${foldContext}: Start with a problem-focused question or statement`);
           score -= 0.5;
         }
         rewrittenContent.headline = `Are you struggling with ${categoryTitle.toLowerCase()} challenges? Here's your solution.`;
-      } else if (contentType === 'bodyText') {
-        if (content.length < 100) {
-          issues.push('Body text too short to properly agitate the problem');
-          suggestions.push('Expand on the pain points and consequences of not solving the problem');
+      } else if (contentType === 'textBox') {
+        if (content.length < 50) {
+          issues.push(`${foldContext}${textBoxContext}: Text too short to properly agitate the problem`);
+          suggestions.push(`${foldContext}${textBoxContext}: Expand on the pain points and consequences`);
           score -= 0.3;
         }
-        suggestions.push('Structure content as: Problem → Agitation → Solution for maximum impact');
+        suggestions.push(`${foldContext}${textBoxContext}: Structure as Problem → Agitation → Solution`);
       }
       break;
 
     case 'AIDA':
       if (contentType === 'headline') {
         if (!content.match(/[!?]/) && content.length < 10) {
-          issues.push('Headline lacks attention-grabbing elements');
-          suggestions.push('Use power words, numbers, or questions to capture attention');
+          issues.push(`${foldContext}: Headline lacks attention-grabbing elements`);
+          suggestions.push(`${foldContext}: Use power words, numbers, or questions to capture attention`);
           score -= 0.4;
         }
         rewrittenContent.headline = `Transform Your ${categoryTitle} Results in 30 Days!`;
       } else if (contentType === 'cta') {
         if (content.toLowerCase().includes('submit') || content.toLowerCase().includes('click')) {
-          issues.push('CTA uses weak action words');
-          suggestions.push('Use desire-driven action words like "Get", "Start", "Unlock"');
+          issues.push(`${foldContext}: CTA uses weak action words`);
+          suggestions.push(`${foldContext}: Use desire-driven action words like "Get", "Start", "Unlock"`);
           score -= 0.6;
         }
         rewrittenContent.cta = `Get My ${categoryTitle} Solution Now`;
@@ -134,29 +199,29 @@ const generateFrameworkAnalysis = (
     case 'Cialdini':
       if (contentType === 'socialProof') {
         if (!content || content.length < 20) {
-          issues.push('Missing or insufficient social proof');
-          suggestions.push('Add testimonials, user counts, or authority endorsements');
+          issues.push(`${foldContext}: Missing or insufficient social proof`);
+          suggestions.push(`${foldContext}: Add testimonials, user counts, or authority endorsements`);
           score -= 0.8;
         }
       } else if (contentType === 'cta') {
         if (!content.toLowerCase().includes('limited') && !content.toLowerCase().includes('now')) {
-          suggestions.push('Add scarcity or urgency elements to increase action');
+          suggestions.push(`${foldContext}: Add scarcity or urgency elements to increase action`);
           rewrittenContent.cta = `${content} - Limited Time Offer`;
         }
       }
       break;
 
     case 'Nielsen':
-      if (contentType === 'bodyText') {
-        if (content.split('.').length > 10) {
-          issues.push('Text may be too complex - consider breaking into smaller chunks');
-          suggestions.push('Use bullet points and shorter paragraphs for better readability');
+      if (contentType === 'textBox') {
+        if (content.split('.').length > 8) {
+          issues.push(`${foldContext}${textBoxContext}: Text may be too complex - consider breaking into smaller chunks`);
+          suggestions.push(`${foldContext}${textBoxContext}: Use bullet points and shorter paragraphs for better readability`);
           score -= 0.2;
         }
       } else if (contentType === 'headline') {
         if (content.length > 60) {
-          issues.push('Headline may be too long for optimal readability');
-          suggestions.push('Keep headlines under 60 characters for better comprehension');
+          issues.push(`${foldContext}: Headline may be too long for optimal readability`);
+          suggestions.push(`${foldContext}: Keep headlines under 60 characters for better comprehension`);
           score -= 0.3;
         }
       }
@@ -165,14 +230,14 @@ const generateFrameworkAnalysis = (
     case 'Fogg':
       if (contentType === 'cta') {
         if (content.split(' ').length > 3) {
-          issues.push('CTA may be too complex - reduce cognitive load');
-          suggestions.push('Simplify to 1-3 words for easier decision making');
+          issues.push(`${foldContext}: CTA may be too complex - reduce cognitive load`);
+          suggestions.push(`${foldContext}: Simplify to 1-3 words for easier decision making`);
           score -= 0.4;
         }
         rewrittenContent.cta = 'Start Now';
-      } else if (contentType === 'bodyText') {
+      } else if (contentType === 'textBox') {
         if (!content.toLowerCase().includes('easy') && !content.toLowerCase().includes('simple')) {
-          suggestions.push('Emphasize ease and simplicity to reduce perceived effort');
+          suggestions.push(`${foldContext}${textBoxContext}: Emphasize ease and simplicity to reduce perceived effort`);
         }
       }
       break;
@@ -180,7 +245,7 @@ const generateFrameworkAnalysis = (
 
   // Add some positive reinforcement
   if (issues.length === 0) {
-    suggestions.push(`${contentType} effectively applies ${framework} principles`);
+    suggestions.push(`${foldContext}: ${contentType}${textBoxContext} effectively applies ${framework} principles`);
     score += 0.2;
   }
 
@@ -205,8 +270,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required fields: content, categoryTitle, frameworks' });
     }
 
-    if (!content.headline || !content.bodyText || !content.cta) {
-      return res.status(400).json({ error: 'Missing required content fields: headline, bodyText, cta' });
+    if (!content.folds || !Array.isArray(content.folds) || content.folds.length === 0) {
+      return res.status(400).json({ error: 'Content must contain at least one fold' });
+    }
+
+    // Validate that at least one fold has required content
+    const hasValidFold = content.folds.some((fold: LandingPageFold) => 
+      fold.headline?.trim() && 
+      fold.cta?.trim() && 
+      fold.textBoxes?.some((text: string) => text.trim())
+    );
+
+    if (!hasValidFold) {
+      return res.status(400).json({ error: 'At least one fold must have headline, CTA, and text content' });
     }
 
     const result = await analyzeLandingPageContent(content, categoryTitle, frameworks);

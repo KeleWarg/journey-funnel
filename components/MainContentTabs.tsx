@@ -6,14 +6,17 @@ import LandingPageEditor from '@components/LandingPageEditor';
 import LandingPageAnalysisPanel from '@components/LandingPageAnalysisPanel';
 import { StepWithText, BoostElement } from '../types';
 
-interface LandingPageContent {
+interface LandingPageFold {
+  id: string;
   headline: string;
   subheadline?: string;
-  bodyText: string;
   cta: string;
-  supportingCopy?: string;
-  valueProposition?: string;
+  textBoxes: string[];
   socialProof?: string;
+}
+
+interface LandingPageContent {
+  folds: LandingPageFold[];
 }
 
 interface LandingPageAnalysisResult {

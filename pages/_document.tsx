@@ -4,13 +4,13 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes" />
-        <meta name="theme-color" content="#4F46E5" />
-        <meta name="mobile-web-app-capable" content="yes" />
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="Lead Gen Funnel Reviewer - Optimize your lead generation funnels and landing pages with AI-powered analysis" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Journey Calculator" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <meta name="apple-mobile-web-app-title" content="Lead Gen Funnel Reviewer" />
+        <link rel="icon" href="/favicon.ico" />
+        <title>Lead Gen Funnel Reviewer</title>
       </Head>
       <body>
         <Main />

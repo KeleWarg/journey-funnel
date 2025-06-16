@@ -47,7 +47,7 @@ const ExportShareControls: React.FC<ExportShareControlsProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `journey-calculator-${Date.now()}.json`;
+      a.download = `lead-gen-funnel-reviewer-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -138,7 +138,7 @@ const ExportShareControls: React.FC<ExportShareControlsProps> = ({
       });
 
       // Find the main content area to capture
-      const element = document.querySelector('.journey-calculator-content') || 
+      const element = document.querySelector('.lead-gen-funnel-reviewer-content') || 
                      document.querySelector('main') || 
                      document.body;
 
