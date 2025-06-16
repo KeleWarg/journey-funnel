@@ -23,6 +23,7 @@ import UniqueCombinationTable from '@components/UniqueCombinationTable';
 import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
 import FoggModelAnalysis from '@components/FoggModelAnalysis';
 import AnalysisTabsSection from '@components/AnalysisTabsSection';
+import HowItWorksSection from '@components/HowItWorksSection';
 import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult, StepWithText } from '../types';
 
 // Default values and constants - Updated to match YAML specification
@@ -1340,16 +1341,38 @@ const LeadGenFunnelReviewer: React.FC = () => {
         <meta name="description" content="Optimize your lead generation funnels and landing pages with AI-powered analysis" />
       </Head>
       <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Lead Gen Funnel Reviewer</h1>
-                              <p className="mt-1 text-sm text-gray-500">
-                  Optimize your lead generation funnels and landing pages with AI-powered analysis
-                </p>
+      {/* Header with Apple Glass Gradient */}
+      <header className="relative bg-gradient-to-br from-white/90 via-gray-100/80 to-gray-200/70 backdrop-blur-xl border-b border-white/20 shadow-md">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-indigo-500/10"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-left">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
+              Lead Gen Funnel Reviewer
+            </h1>
+            <p className="text-xl text-gray-700/90 mb-4">
+              Optimize your lead generation funnels and landing pages with AI-powered analysis
+            </p>
+            <div className="flex flex-wrap gap-4 text-sm text-gray-600/80 mb-6">
+              <span className="flex items-center gap-1 bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full border border-white/30">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Psychological Frameworks
+              </span>
+              <span className="flex items-center gap-1 bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full border border-white/30">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                AI-Powered Analysis
+              </span>
+              <span className="flex items-center gap-1 bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full border border-white/30">
+                <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
+                Step Optimization
+              </span>
+              <span className="flex items-center gap-1 bg-white/40 backdrop-blur-sm px-3 py-1 rounded-full border border-white/30">
+                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                Data Import
+              </span>
             </div>
+            
+            {/* How It Works Section in Header */}
+            <HowItWorksSection />
           </div>
         </div>
       </header>
