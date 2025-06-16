@@ -8,7 +8,7 @@ import { Input } from '@components/ui/input';
 import { Loader2Icon, BarChart3Icon } from 'lucide-react';
 import CurrentConstantsSection from '@components/CurrentConstantsSection';
 import FunnelSettingsSection from '@components/FunnelSettingsSection';
-import StepsEditor from '@components/StepsEditor';
+import MainContentTabs from '@components/MainContentTabs';
 import SimulationBacksolveControls from '@components/SimulationBacksolveControls';
 import BacksolveResultPanel from '@components/BacksolveResultPanel';
 import OptimizeControls from '@components/OptimizeControls';
@@ -117,6 +117,23 @@ const useAssessmentCache = () => {
   return { getCachedAssessment, setCachedAssessment };
 };
 
+// Landing Page Content interface
+interface LandingPageContent {
+  headline: string;
+  subheadline?: string;
+  bodyText: string;
+  cta: string;
+  supportingCopy?: string;
+  valueProposition?: string;
+  socialProof?: string;
+}
+
+interface LandingPageAnalysisResult {
+  assessments: any[];
+  overallScore?: number;
+  topRecommendations?: string[];
+}
+
 const JourneyCalculator: React.FC = () => {
   const { toast } = useToast();
   
@@ -168,6 +185,19 @@ const JourneyCalculator: React.FC = () => {
   const [hybridSeeding, setHybridSeeding] = useState(false); // NEW: Hybrid Fogg+ELM seeding
   const [backupOverrides, setBackupOverrides] = useState<Record<string, number> | null>(null);
   const [isClassifyingBoosts, setIsClassifyingBoosts] = useState(false);
+
+  // Landing Page State
+  const [landingPageContent, setLandingPageContent] = useState<LandingPageContent>({
+    headline: '',
+    subheadline: '',
+    bodyText: '',
+    cta: '',
+    supportingCopy: '',
+    valueProposition: '',
+    socialProof: ''
+  });
+  const [isAnalyzingLandingPage, setIsAnalyzingLandingPage] = useState(false);
+  const [landingPageAnalysisResult, setLandingPageAnalysisResult] = useState<LandingPageAnalysisResult | null>(null);
 
   // Core state
   const [E, setE] = useState(3);
@@ -367,6 +397,55 @@ const JourneyCalculator: React.FC = () => {
       setIsClassifyingBoosts(false);
     }
   };
+
+  // Landing Page Analysis Function
+  const runLandingPageAnalysis = useCallback(async () => {
+    if (!landingPageContent.headline || !landingPageContent.bodyText || !landingPageContent.cta || !categoryTitle.trim()) {
+      toast({
+        title: "Missing Required Fields",
+        description: "Please complete headline, body text, CTA, and category title before running analysis",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsAnalyzingLandingPage(true);
+      
+      const response = await fetch('/api/assessLandingPage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: landingPageContent,
+          categoryTitle,
+          frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini'] // Same frameworks as journey steps
+        })
+      });
+      
+      if (!response.ok) throw new Error('Landing page analysis failed');
+      
+      const data = await response.json();
+      setLandingPageAnalysisResult(data);
+      
+      const frameworkNames = data.assessments?.length > 0 
+        ? Array.from(new Set(data.assessments.flatMap((a: any) => a.frameworkAssessments.map((f: any) => f.framework)))).join(', ')
+        : 'multiple frameworks';
+      
+      toast({
+        title: "Landing Page Analysis Complete",
+        description: `Content analyzed using ${frameworkNames} with optimization recommendations`
+      });
+    } catch (error) {
+      console.error('Landing page analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Could not analyze landing page content",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzingLandingPage(false);
+    }
+  }, [landingPageContent, categoryTitle, toast]);
 
   // Helper function to build payload with optional parameter overrides
   const buildPayloadWithParams = useCallback((paramOverrides?: any) => {
@@ -1263,8 +1342,9 @@ const JourneyCalculator: React.FC = () => {
           setWN
         }} />
 
-        {/* Steps Editor */}
-        <StepsEditor
+        {/* Main Content Tabs - Journey Steps and Landing Page */}
+        <MainContentTabs
+          // Journey Steps props
           steps={steps}
           onAddStep={addStep}
           onRemoveStep={removeStep}
@@ -1280,339 +1360,352 @@ const JourneyCalculator: React.FC = () => {
           isClassifyingBoosts={isClassifyingBoosts}
           categoryTitle={categoryTitle}
           onCategoryTitleChange={setCategoryTitle}
-        />
+          
+          // Landing Page props
+          landingPageContent={landingPageContent}
+          onLandingPageContentChange={setLandingPageContent}
+          onRunLandingPageAnalysis={runLandingPageAnalysis}
+          isAnalyzingLandingPage={isAnalyzingLandingPage}
+          landingPageAnalysisResult={landingPageAnalysisResult}
+          
+          // Journey Steps specific sections
+          journeyStepsAnalysisSections={
+            <>
+              {/* Complete Analysis Controls */}
+              <SimulationBacksolveControls
+                onRunCompleteAnalysis={runCompleteAnalysis}
+                isRunningComplete={isRunningComplete}
+                loadingMessage={loadingMessage}
+                canRunCompleteAnalysis={canRunCompleteAnalysis}
+                categoryTitle={categoryTitle}
+              />
 
-        {/* Complete Analysis Controls */}
-        <SimulationBacksolveControls
-          onRunCompleteAnalysis={runCompleteAnalysis}
-          isRunningComplete={isRunningComplete}
-          loadingMessage={loadingMessage}
-          canRunCompleteAnalysis={canRunCompleteAnalysis}
-          categoryTitle={categoryTitle}
-        />
-
-        {/* Back-solve Result Panel */}
-        {backsolveResult && (
-          <BacksolveResultPanel
-            backsolveResult={backsolveResult}
-          />
-        )}
-
-        {/* Detailed Analysis Results Section */}
-        {simulationData && (
-          <AnalysisTabsSection
-            mcpFunnelResult={mcpFunnelResult}
-            enhancedMcpResult={enhancedMcpResult}
-            isEnhancedMCPAnalyzing={isEnhancedMCPAnalyzing}
-            isMCPAnalyzing={isMCPAnalyzing}
-            onApplyRecommendedOrder={applyMCPVariant}
-            onRunEnhancedMCP={runEnhancedMCPAnalysis}
-            onApplyEnhancedVariant={applyEnhancedVariant}
-            steps={steps}
-            onRunFoggAnalysis={simulationData ? runMCPFunnelAnalysis : undefined}
-            onApplyFoggOrder={(order) => {
-              // Apply the Fogg-recommended order
-              const reorderedSteps = order.map(index => steps[index]);
-              setSteps(reorderedSteps);
-              
-              // Show success message
-              toast({
-                title: "Fogg-BM Order Applied!",
-                description: `Steps reordered based on Fogg Behavior Model: ${order.map(i => `Step ${i + 1}`).join(' → ')}`,
-              });
-              
-              // Re-run simulation with new order
-              updateSimulation();
-            }}
-            llmAssessmentResult={llmAssessmentResult}
-            isAssessing={isAssessing}
-            onRunAssessment={runLLMAssessment}
-            baselineCR={simulationData?.CR_total || 0}
-            simulationData={simulationData}
-            optimalPositions={optimalPositions}
-            llmCache={llmCache}
-            setLlmCache={setLlmCache}
-            foggStepAssessments={foggStepAssessments}
-            isFoggStepAssessing={isFoggStepAssessing}
-            onRunFoggStepAssessment={runFoggStepAssessment}
-            canRunDetailedAssessment={canRunDetailedAssessment}
-          />
-        )}
-
-        {/* Step Order Optimization Section */}
-        {simulationData && (
-          <Card className="border border-gray-200 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-indigo-900">
-                🎯 Find Optimal Step Flow
-              </CardTitle>
-              <p className="text-gray-600">
-                AI-powered step reordering using live Fogg B=MAT analysis, unique combinations impact, and intelligent optimization.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Fogg-Based Optimization Status */}
-              {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 && (
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">🧠</span>
-                    <h4 className="text-lg font-semibold text-blue-900">🧠 Fogg B=MAT Intelligence Available</h4>
-                    {!foggStepAssessments.isMock && (
-                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                        Live AI Analysis
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    {foggStepAssessments.assessments.map((assessment, idx) => (
-                      <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-sm font-medium text-gray-900 mb-2">Step {assessment.stepIndex + 1}</div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div className="text-center">
-                            <div className="font-bold text-blue-600">{assessment.motivation_score.toFixed(1)}</div>
-                            <div className="text-gray-600">Motivation</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-bold text-green-600">{assessment.ability_score.toFixed(1)}</div>
-                            <div className="text-gray-600">Ability</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-bold text-purple-600">{assessment.trigger_score.toFixed(1)}</div>
-                            <div className="text-gray-600">Trigger</div>
-                          </div>
-                        </div>
-                        <div className="mt-2 text-center">
-                          <div className="text-sm font-bold text-gray-900">
-                            Overall: {assessment.overall_score.toFixed(1)}/5
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-blue-700">
-                    ✨ <strong>Smart Optimization:</strong> Using live Fogg scores to intelligently seed step reordering for maximum conversion impact.
-                  </p>
-                </div>
+              {/* Back-solve Result Panel */}
+              {backsolveResult && (
+                <BacksolveResultPanel
+                  backsolveResult={backsolveResult}
+                />
               )}
 
-              {/* Optimize Controls */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="num-samples" className="text-sm font-medium text-gray-700">
-                    # of Samples to Try
-                  </Label>
-                  <Input
-                    id="num-samples"
-                    type="number"
-                    step={1000}
-                    min={1000}
-                    max={20000}
-                    value={numSamples}
-                    onChange={(e) => setNumSamples(parseInt(e.target.value) || 20000)}
-                    className="w-32 border-gray-300 focus:border-indigo-500"
-                  />
-                </div>
+              {/* Detailed Analysis Results Section */}
+              {simulationData && (
+                <AnalysisTabsSection
+                  mcpFunnelResult={mcpFunnelResult}
+                  enhancedMcpResult={enhancedMcpResult}
+                  isEnhancedMCPAnalyzing={isEnhancedMCPAnalyzing}
+                  isMCPAnalyzing={isMCPAnalyzing}
+                  onApplyRecommendedOrder={applyMCPVariant}
+                  onRunEnhancedMCP={runEnhancedMCPAnalysis}
+                  onApplyEnhancedVariant={applyEnhancedVariant}
+                  steps={steps}
+                  onRunFoggAnalysis={simulationData ? runMCPFunnelAnalysis : undefined}
+                  onApplyFoggOrder={(order) => {
+                    // Apply the Fogg-recommended order
+                    const reorderedSteps = order.map(index => steps[index]);
+                    setSteps(reorderedSteps);
+                    
+                    // Show success message
+                    toast({
+                      title: "Fogg-BM Order Applied!",
+                      description: `Steps reordered based on Fogg Behavior Model: ${order.map(i => `Step ${i + 1}`).join(' → ')}`,
+                    });
+                    
+                    // Re-run simulation with new order
+                    updateSimulation();
+                  }}
+                  llmAssessmentResult={llmAssessmentResult}
+                  isAssessing={isAssessing}
+                  onRunAssessment={runLLMAssessment}
+                  baselineCR={simulationData?.CR_total || 0}
+                  simulationData={simulationData}
+                  optimalPositions={optimalPositions}
+                  llmCache={llmCache}
+                  setLlmCache={setLlmCache}
+                  foggStepAssessments={foggStepAssessments}
+                  isFoggStepAssessing={isFoggStepAssessing}
+                  onRunFoggStepAssessment={runFoggStepAssessment}
+                  canRunDetailedAssessment={canRunDetailedAssessment}
+                />
+              )}
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">
-                    Optimization Strategy
-                  </Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="fogg-seeding"
-                        checked={foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0}
-                        disabled={true}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <label className="text-sm text-gray-900">
-                        🧠 Fogg B=MAT Seeding {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '(Active)' : '(Run Assessment)'}
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="hybrid-seeding"
-                        checked={hybridSeeding}
-                        onChange={(e) => setHybridSeeding(e.target.checked)}
-                        disabled={!llmAssessmentResult?.assessments?.length}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <label 
-                        htmlFor="hybrid-seeding" 
-                        className={`text-sm ${llmAssessmentResult?.assessments?.length ? 'text-gray-900' : 'text-gray-400'}`}
-                      >
-                        📊 Framework Analysis Boost
-                      </label>
-                    </div>
-                  </div>
-                  {!(foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0) && (
-                    <p className="text-xs text-amber-600">
-                      ⚠️ Run Detailed Assessment first for AI-powered optimization
+              {/* Step Order Optimization Section */}
+              {simulationData && (
+                <Card className="border border-gray-200 shadow-sm bg-gradient-to-r from-purple-50 to-indigo-50">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold text-indigo-900">
+                      🎯 Find Optimal Step Flow
+                    </CardTitle>
+                    <p className="text-gray-600">
+                      AI-powered step reordering using live Fogg B=MAT analysis, unique combinations impact, and intelligent optimization.
                     </p>
-                  )}
-                </div>
-
-                <div className="flex items-end">
-                  <Button
-                    onClick={runOptimize}
-                    disabled={isOptimizing}
-                    className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 w-full lg:w-auto"
-                  >
-                    {isOptimizing ? (
-                      <>
-                        <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
-                        Optimizing...
-                      </>
-                    ) : (
-                      foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '🧠 AI-Optimize Flow' : 'Find Optimal Flow'
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Enhanced Help Text */}
-              <div className="text-sm text-gray-600 space-y-2 bg-white p-4 rounded-lg">
-                <p>
-                  <strong>🎯 AI-Powered Step Optimization:</strong> Uses live Fogg Behavior Model analysis to intelligently reorder steps for maximum conversion.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <p className="font-medium text-gray-800">🧠 Fogg B=MAT Seeding:</p>
-                    <p className="text-xs">Orders steps by Motivation × Ability × Trigger scores from live AI analysis</p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">📊 Framework Analysis:</p>
-                    <p className="text-xs">Combines PAS, AIDA, Nielsen principles with Fogg insights for optimal flow</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Optimization Results */}
-              {optimizeResult && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-lg font-semibold text-gray-800">🚀 Optimization Results</h4>
-                    {optimizeResult.algorithm && (
-                      <span className="text-sm text-gray-600 bg-white px-2 py-1 rounded">
-                        {optimizeResult.algorithm === 'hybrid_seeded_sampling' ? '🧠 Hybrid Seeded' : 
-                         optimizeResult.algorithm === 'exhaustive' ? '🔍 Exhaustive' : '🔄 Heuristic'} Search
-                      </span>
-                    )}
-                  </div>
-                  
-                  {/* Fogg B=MAT Seeding Info */}
-                  {optimizeResult.fogg_seeding?.enabled && optimizeResult.fogg_seeding.seeded_order && (
-                    <div className="p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium text-blue-900">🧠 Fogg B=MAT Intelligent Seeded Order:</span>
-                        <div className="flex flex-wrap gap-1">
-                                                     {optimizeResult.fogg_seeding.seeded_order?.map((stepIndex: number, position: number) => (
-                             <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                               Step {stepIndex + 1}
-                             </span>
-                           )) || []}
-                        </div>
-                        {optimizeResult.fogg_seeding.seeded_order_is_optimal && (
-                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
-                            🎯 Optimal!
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-blue-700">
-                        <strong>🧠 AI-Powered Ordering:</strong> This order was computed using live Fogg Behavior Model analysis 
-                        (Motivation × Ability × Trigger scores) from real AI assessment of your steps.
-                        {optimizeResult.fogg_seeding.seeded_order_is_optimal 
-                          ? ' ✨ The AI-recommended order achieved the optimal result!' 
-                          : ' Used as intelligent starting point for optimization search.'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Hybrid Seeding Info */}
-                  {optimizeResult.hybrid_seeding?.enabled && optimizeResult.hybrid_seeding.seeded_order && (
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-medium text-blue-900">📊 Framework Analysis Seeded Order:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {optimizeResult.hybrid_seeding.seeded_order?.map((stepIndex, position) => (
-                            <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                              Step {stepIndex + 1}
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Fogg-Based Optimization Status */}
+                    {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 && (
+                      <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-3 mb-3">
+                          <span className="text-2xl">🧠</span>
+                          <h4 className="text-lg font-semibold text-blue-900">🧠 Fogg B=MAT Intelligence Available</h4>
+                          {!foggStepAssessments.isMock && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                              Live AI Analysis
                             </span>
-                          )) || []}
+                          )}
                         </div>
-                        {optimizeResult.hybrid_seeding.seeded_order_is_optimal && (
-                          <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
-                            🎯 Optimal!
-                          </span>
-                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          {foggStepAssessments.assessments.map((assessment, idx) => (
+                            <div key={idx} className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-sm font-medium text-gray-900 mb-2">Step {assessment.stepIndex + 1}</div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="text-center">
+                                  <div className="font-bold text-blue-600">{assessment.motivation_score.toFixed(1)}</div>
+                                  <div className="text-gray-600">Motivation</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="font-bold text-green-600">{assessment.ability_score.toFixed(1)}</div>
+                                  <div className="text-gray-600">Ability</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="font-bold text-purple-600">{assessment.trigger_score.toFixed(1)}</div>
+                                  <div className="text-gray-600">Trigger</div>
+                                </div>
+                              </div>
+                              <div className="mt-2 text-center">
+                                <div className="text-sm font-bold text-gray-900">
+                                  Overall: {assessment.overall_score.toFixed(1)}/5
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-sm text-blue-700">
+                          ✨ <strong>Smart Optimization:</strong> Using live Fogg scores to intelligently seed step reordering for maximum conversion impact.
+                        </p>
                       </div>
-                      <p className="text-xs text-blue-700">
-                        This order combines Fogg Behavior Model with framework analysis (PAS, AIDA, Nielsen) 
-                        to intelligently seed the optimization search.
-                        {optimizeResult.hybrid_seeding.seeded_order_is_optimal 
-                          ? ' The combined approach achieved the optimal result!' 
-                          : ' Used as secondary starting point for optimization.'}
-                      </p>
-                    </div>
-                  )}
-                  
-                                    {/* Optimal Flow */}
-                  {optimizeResult.optimal_step_order && (
-                    <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-purple-700">✨ Optimal Flow</span>
-                        <span className="text-lg font-bold text-green-700">
-                          {(optimizeResult.optimal_CR_total * 100).toFixed(2)}%
-                        </span>
+                    )}
+
+                    {/* Optimize Controls */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="num-samples" className="text-sm font-medium text-gray-700">
+                          # of Samples to Try
+                        </Label>
+                        <Input
+                          id="num-samples"
+                          type="number"
+                          step={1000}
+                          min={1000}
+                          max={20000}
+                          value={numSamples}
+                          onChange={(e) => setNumSamples(parseInt(e.target.value) || 20000)}
+                          className="w-32 border-gray-300 focus:border-indigo-500"
+                        />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {optimizeResult.optimal_step_order.map((originalStepIndex, position) => (
-                          <div key={position} className="flex items-center gap-1">
-                            <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
-                              Step {originalStepIndex + 1}
-                            </span>
-                            {position < optimizeResult.optimal_step_order.length - 1 && (
-                              <span className="text-gray-400">→</span>
-                            )}
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Optimization Strategy
+                        </Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="fogg-seeding"
+                              checked={foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0}
+                              disabled={true}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <label className="text-sm text-gray-900">
+                              🧠 Fogg B=MAT Seeding {foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '(Active)' : '(Run Assessment)'}
+                            </label>
                           </div>
-                        ))}
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="hybrid-seeding"
+                              checked={hybridSeeding}
+                              onChange={(e) => setHybridSeeding(e.target.checked)}
+                              disabled={!llmAssessmentResult?.assessments?.length}
+                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            />
+                            <label 
+                              htmlFor="hybrid-seeding" 
+                              className={`text-sm ${llmAssessmentResult?.assessments?.length ? 'text-gray-900' : 'text-gray-400'}`}
+                            >
+                              📊 Framework Analysis Boost
+                            </label>
+                          </div>
+                        </div>
+                        {!(foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0) && (
+                          <p className="text-xs text-amber-600">
+                            ⚠️ Run Detailed Assessment first for AI-powered optimization
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-end">
+                        <Button
+                          onClick={runOptimize}
+                          disabled={isOptimizing}
+                          className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 disabled:bg-gray-400 w-full lg:w-auto"
+                        >
+                          {isOptimizing ? (
+                            <>
+                              <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                              Optimizing...
+                            </>
+                          ) : (
+                            foggStepAssessments?.assessments && foggStepAssessments.assessments.length > 0 ? '🧠 AI-Optimize Flow' : 'Find Optimal Flow'
+                          )}
+                        </Button>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-        {/* Export & Share Controls */}
-        <ExportShareControls
-          simulationData={simulationData}
-          backsolveResult={backsolveResult}
-          optimalPositions={optimalPositions}
-          buildPayload={buildPayload}
-          llmCache={llmCache}
-        />
 
-        {/* Data Visualization */}
-        {simulationData && (
-          <DataVisualization
-            simulationData={simulationData}
-            optimizeResult={optimizeResult}
-            steps={steps}
-            E={E}
-            N_importance={N}
-            source={source}
-            c1={c1}
-            c2={c2}
-            c3={c3}
-            w_c={w_c}
-            w_f={w_f}
-            w_E={w_E}
-            w_N={w_N}
-          />
-        )}
+                    {/* Enhanced Help Text */}
+                    <div className="text-sm text-gray-600 space-y-2 bg-white p-4 rounded-lg">
+                      <p>
+                        <strong>🎯 AI-Powered Step Optimization:</strong> Uses live Fogg Behavior Model analysis to intelligently reorder steps for maximum conversion.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                        <div>
+                          <p className="font-medium text-gray-800">🧠 Fogg B=MAT Seeding:</p>
+                          <p className="text-xs">Orders steps by Motivation × Ability × Trigger scores from live AI analysis</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">📊 Framework Analysis:</p>
+                          <p className="text-xs">Combines PAS, AIDA, Nielsen principles with Fogg insights for optimal flow</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Optimization Results */}
+                    {optimizeResult && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-lg font-semibold text-gray-800">🚀 Optimization Results</h4>
+                          {optimizeResult.algorithm && (
+                            <span className="text-sm text-gray-600 bg-white px-2 py-1 rounded">
+                              {optimizeResult.algorithm === 'hybrid_seeded_sampling' ? '🧠 Hybrid Seeded' : 
+                               optimizeResult.algorithm === 'exhaustive' ? '🔍 Exhaustive' : '🔄 Heuristic'} Search
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Fogg B=MAT Seeding Info */}
+                        {optimizeResult.fogg_seeding?.enabled && optimizeResult.fogg_seeding.seeded_order && (
+                          <div className="p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-medium text-blue-900">🧠 Fogg B=MAT Intelligent Seeded Order:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {optimizeResult.fogg_seeding.seeded_order?.map((stepIndex: number, position: number) => (
+                                  <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                    Step {stepIndex + 1}
+                                  </span>
+                                )) || []}
+                              </div>
+                              {optimizeResult.fogg_seeding.seeded_order_is_optimal && (
+                                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
+                                  🎯 Optimal!
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-blue-700">
+                              <strong>🧠 AI-Powered Ordering:</strong> This order was computed using live Fogg Behavior Model analysis 
+                              (Motivation × Ability × Trigger scores) from real AI assessment of your steps.
+                              {optimizeResult.fogg_seeding.seeded_order_is_optimal 
+                                ? ' ✨ The AI-recommended order achieved the optimal result!' 
+                                : ' Used as intelligent starting point for optimization search.'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Hybrid Seeding Info */}
+                        {optimizeResult.hybrid_seeding?.enabled && optimizeResult.hybrid_seeding.seeded_order && (
+                          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm font-medium text-blue-900">📊 Framework Analysis Seeded Order:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {optimizeResult.hybrid_seeding.seeded_order?.map((stepIndex, position) => (
+                                  <span key={position} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                                    Step {stepIndex + 1}
+                                  </span>
+                                )) || []}
+                              </div>
+                              {optimizeResult.hybrid_seeding.seeded_order_is_optimal && (
+                                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-bold">
+                                  🎯 Optimal!
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-blue-700">
+                              This order combines Fogg Behavior Model with framework analysis (PAS, AIDA, Nielsen) 
+                              to intelligently seed the optimization search.
+                              {optimizeResult.hybrid_seeding.seeded_order_is_optimal 
+                                ? ' The combined approach achieved the optimal result!' 
+                                : ' Used as secondary starting point for optimization.'}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Optimal Flow */}
+                        {optimizeResult.optimal_step_order && (
+                          <div className="p-3 bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-purple-700">✨ Optimal Flow</span>
+                              <span className="text-lg font-bold text-green-700">
+                                {(optimizeResult.optimal_CR_total * 100).toFixed(2)}%
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {optimizeResult.optimal_step_order.map((originalStepIndex, position) => (
+                                <div key={position} className="flex items-center gap-1">
+                                  <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                                    Step {originalStepIndex + 1}
+                                  </span>
+                                  {position < optimizeResult.optimal_step_order.length - 1 && (
+                                    <span className="text-gray-400">→</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Export & Share Controls */}
+              <ExportShareControls
+                simulationData={simulationData}
+                backsolveResult={backsolveResult}
+                optimalPositions={optimalPositions}
+                buildPayload={buildPayload}
+                llmCache={llmCache}
+              />
+
+              {/* Data Visualization */}
+              {simulationData && (
+                <DataVisualization
+                  simulationData={simulationData}
+                  optimizeResult={optimizeResult}
+                  steps={steps}
+                  E={E}
+                  N_importance={N}
+                  source={source}
+                  c1={c1}
+                  c2={c2}
+                  c3={c3}
+                  w_c={w_c}
+                  w_f={w_f}
+                  w_E={w_E}
+                  w_N={w_N}
+                />
+              )}
+            </>
+          }
+        />
 
       </main>
 
