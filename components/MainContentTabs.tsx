@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@components/ui/tabs';
 import { Button } from '@components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { ListIcon, FileTextIcon, Upload } from 'lucide-react';
+import { ListIcon, FileTextIcon, Upload, ComponentIcon } from 'lucide-react';
 import StepsEditor from '@components/StepsEditor';
 import LandingPageEditor from '@components/LandingPageEditor';
 import LandingPageAnalysisPanel from '@components/LandingPageAnalysisPanel';
+import WidgetEditor from '@components/WidgetEditor';
+import WidgetAnalysisPanel from '@components/WidgetAnalysisPanel';
 import SpreadsheetUpload from '@components/SpreadsheetUpload';
 import { StepWithText, BoostElement } from '../types';
 
@@ -23,6 +25,25 @@ interface LandingPageContent {
 }
 
 interface LandingPageAnalysisResult {
+  assessments: any[];
+  overallScore?: number;
+  topRecommendations?: string[];
+}
+
+interface Widget {
+  id: string;
+  heading: string;
+  subheading?: string;
+  textInputPlaceholder: string;
+  ctaCopy: string;
+  supportTexts: string[];
+}
+
+interface WidgetContent {
+  widgets: Widget[];
+}
+
+interface WidgetAnalysisResult {
   assessments: any[];
   overallScore?: number;
   topRecommendations?: string[];
@@ -65,6 +86,13 @@ interface MainContentTabsProps {
   isAnalyzingLandingPage: boolean;
   landingPageAnalysisResult: LandingPageAnalysisResult | null;
   
+  // Widget props
+  widgetContent: WidgetContent;
+  onWidgetContentChange: (content: WidgetContent) => void;
+  onRunWidgetAnalysis: () => void;
+  isAnalyzingWidgets: boolean;
+  widgetAnalysisResult: WidgetAnalysisResult | null;
+  
   // Journey Steps specific sections (passed as children)
   journeyStepsAnalysisSections?: React.ReactNode;
 }
@@ -95,6 +123,13 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   isAnalyzingLandingPage,
   landingPageAnalysisResult,
   
+  // Widget props
+  widgetContent,
+  onWidgetContentChange,
+  onRunWidgetAnalysis,
+  isAnalyzingWidgets,
+  widgetAnalysisResult,
+  
   // Journey Steps specific sections
   journeyStepsAnalysisSections
 }) => {
@@ -104,7 +139,7 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 h-auto sm:h-10">
+        <TabsList className="grid w-full grid-cols-3 h-auto sm:h-10">
           <TabsTrigger value="journey_steps" className="flex items-center gap-2">
             <ListIcon className="h-4 w-4" />
             Journey Steps
@@ -112,6 +147,10 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
           <TabsTrigger value="landing_page" className="flex items-center gap-2">
             <FileTextIcon className="h-4 w-4" />
             Landing Page Content
+          </TabsTrigger>
+          <TabsTrigger value="widgets" className="flex items-center gap-2">
+            <ComponentIcon className="h-4 w-4" />
+            Widgets
           </TabsTrigger>
         </TabsList>
 
@@ -193,6 +232,33 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
               <LandingPageAnalysisPanel
                 analysisResult={landingPageAnalysisResult}
                 isLoading={isAnalyzingLandingPage}
+                categoryTitle={categoryTitle}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="widgets" className="space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Widget Content Optimization</h3>
+            <p className="text-gray-600 mb-4">
+              Create and optimize widget components like lead capture forms, newsletter signups, and contact forms. 
+              Each widget will be analyzed using the same psychological frameworks as your landing pages.
+            </p>
+            
+            <div className="space-y-6">
+              <WidgetEditor
+                content={widgetContent}
+                onContentChange={onWidgetContentChange}
+                onRunContentAnalysis={onRunWidgetAnalysis}
+                isAnalyzing={isAnalyzingWidgets}
+                categoryTitle={categoryTitle}
+                onCategoryTitleChange={onCategoryTitleChange}
+              />
+              
+              <WidgetAnalysisPanel
+                analysisResult={widgetAnalysisResult}
+                isLoading={isAnalyzingWidgets}
                 categoryTitle={categoryTitle}
               />
             </div>

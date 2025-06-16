@@ -139,6 +139,25 @@ interface LandingPageAnalysisResult {
   topRecommendations?: string[];
 }
 
+interface Widget {
+  id: string;
+  heading: string;
+  subheading?: string;
+  textInputPlaceholder: string;
+  ctaCopy: string;
+  supportTexts: string[];
+}
+
+interface WidgetContent {
+  widgets: Widget[];
+}
+
+interface WidgetAnalysisResult {
+  assessments: any[];
+  overallScore?: number;
+  topRecommendations?: string[];
+}
+
 const LeadGenFunnelReviewer: React.FC = () => {
   const { toast } = useToast();
   
@@ -197,6 +216,13 @@ const LeadGenFunnelReviewer: React.FC = () => {
   });
   const [isAnalyzingLandingPage, setIsAnalyzingLandingPage] = useState(false);
   const [landingPageAnalysisResult, setLandingPageAnalysisResult] = useState<LandingPageAnalysisResult | null>(null);
+
+  // Widget State
+  const [widgetContent, setWidgetContent] = useState<WidgetContent>({
+    widgets: []
+  });
+  const [isAnalyzingWidgets, setIsAnalyzingWidgets] = useState(false);
+  const [widgetAnalysisResult, setWidgetAnalysisResult] = useState<WidgetAnalysisResult | null>(null);
 
   // Core state
   const [E, setE] = useState(3);
@@ -498,6 +524,77 @@ const LeadGenFunnelReviewer: React.FC = () => {
       setIsAnalyzingLandingPage(false);
     }
   }, [landingPageContent, categoryTitle, toast]);
+
+  // Widget Analysis Function
+  const runWidgetAnalysis = useCallback(async () => {
+    // Validate that at least one widget has required content
+    const hasValidWidget = widgetContent.widgets.length > 0 && 
+                          widgetContent.widgets.some(widget => 
+                            widget.heading?.trim() && 
+                            widget.ctaCopy?.trim()
+                          );
+
+    if (!hasValidWidget || !categoryTitle.trim()) {
+      toast({
+        title: "Missing Required Fields",
+        description: "Please create at least one widget with heading and CTA copy, plus category title before running analysis",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsAnalyzingWidgets(true);
+      
+      // Transform widget content to a format similar to landing page folds for analysis
+      const transformedContent = {
+        folds: widgetContent.widgets.map((widget, index) => ({
+          id: widget.id,
+          headline: widget.heading,
+          subheadline: widget.subheading || '',
+          cta: widget.ctaCopy,
+          textBoxes: [
+            widget.textInputPlaceholder,
+            ...widget.supportTexts
+          ].filter(text => text.trim()),
+          socialProof: ''
+        }))
+      };
+      
+      const response = await fetch('/api/assessLandingPage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: transformedContent,
+          categoryTitle: `${categoryTitle} Widget`,
+          frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini'] // Same frameworks as journey steps
+        })
+      });
+      
+      if (!response.ok) throw new Error('Widget analysis failed');
+      
+      const data = await response.json();
+      setWidgetAnalysisResult(data);
+      
+      const frameworkNames = data.assessments?.length > 0 
+        ? Array.from(new Set(data.assessments.flatMap((a: any) => a.frameworkAssessments.map((f: any) => f.framework)))).join(', ')
+        : 'multiple frameworks';
+      
+      toast({
+        title: "Widget Analysis Complete",
+        description: `Widget content analyzed using ${frameworkNames} with optimization recommendations`
+      });
+    } catch (error) {
+      console.error('Widget analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Could not analyze widget content",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzingWidgets(false);
+    }
+  }, [widgetContent, categoryTitle, toast]);
 
   // Helper function to build payload with optional parameter overrides
   const buildPayloadWithParams = useCallback((paramOverrides?: any) => {
@@ -1447,6 +1544,13 @@ const LeadGenFunnelReviewer: React.FC = () => {
           onRunLandingPageAnalysis={runLandingPageAnalysis}
           isAnalyzingLandingPage={isAnalyzingLandingPage}
           landingPageAnalysisResult={landingPageAnalysisResult}
+          
+          // Widget props
+          widgetContent={widgetContent}
+          onWidgetContentChange={setWidgetContent}
+          onRunWidgetAnalysis={runWidgetAnalysis}
+          isAnalyzingWidgets={isAnalyzingWidgets}
+          widgetAnalysisResult={widgetAnalysisResult}
           
           // Journey Steps specific sections
           journeyStepsAnalysisSections={
