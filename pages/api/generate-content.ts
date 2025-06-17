@@ -347,9 +347,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log('🚀 Generate content API called with body:', JSON.stringify(req.body, null, 2));
+  
   const { competitorUrls, industry = 'business', targetAudience = 'business owners' } = req.body;
 
+  console.log('📊 Parsed request:', { competitorUrls, industry, targetAudience });
+
   if (!competitorUrls || !Array.isArray(competitorUrls) || competitorUrls.length === 0) {
+    console.error('❌ Invalid competitorUrls:', competitorUrls);
     return res.status(400).json({ error: 'At least one competitor URL is required' });
   }
 
@@ -359,33 +364,90 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Scrape all competitor URLs
     const competitorData: CompetitorData[] = [];
     
+    // Get the correct base URL for internal API calls
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                   (req.headers.host ? `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}` : 'http://localhost:3001');
+    
+    console.log('🌐 Using base URL for scraping:', baseUrl);
+    
     for (const url of competitorUrls) {
       if (url.trim()) {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3002'}/api/scrape-competitor`, {
+          console.log(`🔍 Scraping competitor: ${url.trim()}`);
+          
+          const response = await fetch(`${baseUrl}/api/scrape-competitor`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: url.trim() })
           });
           
+          console.log(`📡 Scrape response for ${url}: status ${response.status}`);
+          
           if (response.ok) {
             const data = await response.json();
+            console.log(`✅ Successfully scraped ${url}`);
             competitorData.push(data);
+          } else {
+            console.warn(`⚠️ Failed to scrape ${url}: HTTP ${response.status}`);
+            
+            // If it's a configuration error, log it
+            if (response.status === 500) {
+              const errorData = await response.json().catch(() => ({}));
+              if (errorData.error && errorData.error.includes('API key')) {
+                console.warn(`⚠️ Firecrawl not configured: ${errorData.details}`);
+              }
+            }
           }
         } catch (error) {
-          console.warn(`Failed to scrape ${url}:`, error);
+          console.warn(`❌ Failed to scrape ${url}:`, error);
         }
       }
     }
 
+    console.log(`📊 Successfully scraped ${competitorData.length} out of ${competitorUrls.length} competitors`);
+
+    // Use fallback data if no competitors were scraped successfully
+    let competitorAnalysis;
     if (competitorData.length === 0) {
-      return res.status(400).json({ error: 'Failed to scrape any competitor websites' });
+      console.log('⚠️ No competitor data available, using fallback patterns');
+      competitorAnalysis = {
+        totalCompetitors: 0,
+        commonHeadlinePatterns: [
+          'Transform Your Business',
+          'Get Results Fast',
+          'Increase Performance',
+          'Boost Conversions',
+          'Save Time'
+        ],
+        popularCTAFormats: [
+          'Get Started Free',
+          'Start Your Trial',
+          'Learn More',
+          'Book a Demo',
+          'Sign Up Now'
+        ],
+        valuePropositionThemes: [
+          'Increase efficiency and save time',
+          'Boost conversions and revenue',
+          'Get results in 30 days or less',
+          'Trusted by thousands of businesses',
+          'Easy to use, no technical skills required'
+        ],
+        socialProofTypes: [
+          'customer testimonials',
+          'usage statistics',
+          'company logos',
+          'success stories'
+        ]
+      };
+    } else {
+      // Analyze competitor patterns
+      console.log('🔍 Analyzing competitor patterns...');
+      competitorAnalysis = analyzeCompetitorPatterns(competitorData);
     }
 
-    // Analyze competitor patterns
-    const competitorAnalysis = analyzeCompetitorPatterns(competitorData);
-    
     // Generate optimized content
+    console.log('✨ Generating optimized content...');
     const generatedContent = generateOptimizedContent(
       competitorAnalysis,
       industry,

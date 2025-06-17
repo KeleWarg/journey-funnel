@@ -145,46 +145,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         };
       } else {
-        throw new Error('Firecrawl API failed');
+        const errorText = await firecrawlApiResponse.text().catch(() => 'Unknown error');
+        console.error(`❌ Firecrawl API error: ${firecrawlApiResponse.status} - ${errorText}`);
+        throw new Error(`Firecrawl API failed: ${firecrawlApiResponse.status}`);
       }
     } catch (firecrawlError) {
-      console.warn('Firecrawl API unavailable, using mock data:', firecrawlError);
+      console.error('❌ Firecrawl API error:', firecrawlError);
       
-      // Fallback to mock data if Firecrawl is unavailable
-      firecrawlResponse = {
-        success: true,
-        data: {
-          markdown: `# Transform Your Business Today
-          
-## Get 10x More Leads in 30 Days
-Start your free trial and see results immediately.
-
-### Why Choose Us?
-- Increase conversion rates by 300%
-- Save 20 hours per week on manual tasks
-- Trusted by 50,000+ businesses worldwide
-
-[Get Started Free](/) 
-[Book a Demo](/)
-[Learn More](/)
-
-"This tool increased our leads by 400% in just 2 months!" - Sarah Johnson, CEO
-
-Join 10,000+ satisfied customers who've transformed their business.
-
-### Features That Deliver Results
-- Advanced analytics dashboard
-- Automated lead scoring
-- Real-time notifications
-- 24/7 customer support
-
-[Start Your Free Trial](/)`,
-          metadata: {
-            title: "Lead Generation Software - Get More Leads Today",
-            description: "Transform your business with our proven lead generation platform. Increase conversions by 300% and save 20 hours per week."
-          }
-        }
-      };
+      // Check if Firecrawl API key is configured
+      if (!process.env.FIRECRAWL_API_KEY) {
+        return res.status(500).json({ 
+          error: 'Firecrawl API key not configured',
+          details: 'FIRECRAWL_API_KEY environment variable is required for competitor analysis'
+        });
+      }
+      
+      // Re-throw the error instead of using mock data
+      throw firecrawlError;
     }
 
     if (!firecrawlResponse.success || !firecrawlResponse.data?.markdown) {

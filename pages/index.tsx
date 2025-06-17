@@ -605,18 +605,35 @@ const LeadGenFunnelReviewer: React.FC = () => {
     targetAudience: string;
   }) => {
     setIsAutoGeneratingLandingPage(true);
+    
+    console.log('🚀 Starting landing page generation with data:', data);
+    
     try {
+      toast({
+        title: "Generating Content...",
+        description: `Analyzing ${data.competitorUrls.length} competitor websites`,
+      });
+
       const response = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
 
+      console.log('📡 API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to generate content');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error:', errorData);
+        throw new Error(errorData?.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('✅ API Result:', result);
       
       if (result.success && result.generatedContent?.landingPageFolds) {
         // Transform generated content to match our interface
@@ -633,14 +650,21 @@ const LeadGenFunnelReviewer: React.FC = () => {
         
         toast({
           title: "Content Generated! ✨",
-          description: `Generated ${newFolds.length} optimized landing page folds from ${result.competitorsAnalyzed} competitors`,
+          description: result.competitorsAnalyzed > 0 
+            ? `Generated ${newFolds.length} optimized landing page folds from ${result.competitorsAnalyzed} competitors`
+            : `Generated ${newFolds.length} optimized landing page folds using industry best practices (competitor analysis unavailable)`,
         });
+      } else {
+        throw new Error('Invalid response format from server');
       }
     } catch (error) {
-      console.error('Auto-generate landing page error:', error);
+      console.error('❌ Auto-generate landing page error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      
       toast({
         title: "Generation Failed",
-        description: "Could not generate landing page content. Please try again.",
+        description: `Could not generate content: ${errorMessage}. Check console for details.`,
         variant: "destructive"
       });
     } finally {

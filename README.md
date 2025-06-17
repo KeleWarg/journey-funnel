@@ -46,3 +46,32 @@ npm run dev
 - Tailwind CSS
 - ESLint
 - PostCSS
+
+## Environment Variables
+
+For full functionality, the following environment variables are required:
+
+### Required for Competitor Analysis
+```bash
+FIRECRAWL_API_KEY=your_firecrawl_api_key_here
+```
+
+The competitor analysis feature requires a Firecrawl API key to scrape competitor websites. Without this key:
+- The "Generate Optimized Content" feature will still work using industry best practices
+- Competitor URL analysis will be unavailable
+- Content generation will fall back to predefined patterns
+
+To get a Firecrawl API key:
+1. Visit [firecrawl.dev](https://firecrawl.dev)
+2. Sign up for an account
+3. Generate an API key from your dashboard
+4. Add it to your `.env.local` file as `FIRECRAWL_API_KEY=your_key_here`
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+The application will be available at `http://localhost:3000` (or the next available port).

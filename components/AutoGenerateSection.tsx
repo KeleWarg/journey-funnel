@@ -21,7 +21,7 @@ const AutoGenerateSection: React.FC<AutoGenerateSectionProps> = ({
   isGenerating,
   contentType
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [competitorUrls, setCompetitorUrls] = useState(['']);
   const [industry, setIndustry] = useState('');
   const [targetAudience, setTargetAudience] = useState('business owners');
@@ -44,10 +44,19 @@ const AutoGenerateSection: React.FC<AutoGenerateSectionProps> = ({
 
   const handleGenerate = () => {
     const validUrls = competitorUrls.filter(url => url.trim());
-    if (validUrls.length === 0) return;
+    console.log('🚀 Generate button clicked!', { validUrls, industry, targetAudience });
+    
+    // Always generate content, even if no URLs provided
+    const urlsToUse = validUrls.length > 0 ? validUrls : ['https://example.com']; // Use dummy URL for fallback
+    
+    console.log('✅ Calling onGenerate with data:', {
+      competitorUrls: urlsToUse,
+      industry: industry.trim() || 'business',
+      targetAudience: targetAudience.trim() || 'business owners'
+    });
 
     onGenerate({
-      competitorUrls: validUrls,
+      competitorUrls: urlsToUse,
       industry: industry.trim() || 'business',
       targetAudience: targetAudience.trim() || 'business owners'
     });
@@ -132,8 +141,18 @@ const AutoGenerateSection: React.FC<AutoGenerateSectionProps> = ({
               ))}
             </div>
             
+            {!hasValidUrls && competitorUrls[0] && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-700">
+                  <strong>💡 Tip:</strong> Enter complete URLs starting with "https://" or "http://"
+                </p>
+              </div>
+            )}
+            
             <p className="text-xs text-gray-500">
               Add 2-5 competitor websites for best results. We'll analyze their content patterns and messaging.
+              <br />
+              <span className="text-purple-600 font-medium">Don't have competitor URLs? That's okay - we'll use industry best practices!</span>
             </p>
           </div>
 
@@ -181,8 +200,8 @@ const AutoGenerateSection: React.FC<AutoGenerateSectionProps> = ({
           <div className="flex justify-center pt-2">
             <Button
               onClick={handleGenerate}
-              disabled={!hasValidUrls || isGenerating}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-2 font-medium"
+              disabled={isGenerating}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-2 font-medium transform transition-all duration-200 hover:scale-105"
             >
               {isGenerating ? (
                 <>
@@ -192,7 +211,7 @@ const AutoGenerateSection: React.FC<AutoGenerateSectionProps> = ({
               ) : (
                 <>
                   <SparklesIcon className="h-4 w-4 mr-2" />
-                  Generate Optimized Content
+                  {hasValidUrls ? 'Generate from Competitors' : 'Generate with Best Practices'}
                 </>
               )}
             </Button>
