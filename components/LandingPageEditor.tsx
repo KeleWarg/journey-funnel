@@ -5,6 +5,7 @@ import { Input } from '@components/ui/input';
 import { Label } from '@components/ui/label';
 import { Textarea } from '@components/ui/textarea';
 import { Trash2Icon, PlusIcon, SparklesIcon, GripVerticalIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import AutoGenerateSection from './AutoGenerateSection';
 
 interface LandingPageFold {
   id: string;
@@ -26,6 +27,12 @@ interface LandingPageEditorProps {
   isAnalyzing: boolean;
   categoryTitle: string;
   onCategoryTitleChange: (title: string) => void;
+  onAutoGenerate?: (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => void;
+  isAutoGenerating?: boolean;
 }
 
 const LandingPageEditor: React.FC<LandingPageEditorProps> = ({
@@ -34,7 +41,9 @@ const LandingPageEditor: React.FC<LandingPageEditorProps> = ({
   onRunContentAnalysis,
   isAnalyzing,
   categoryTitle,
-  onCategoryTitleChange
+  onCategoryTitleChange,
+  onAutoGenerate,
+  isAutoGenerating = false
 }) => {
   const [expandedFolds, setExpandedFolds] = useState<Set<string>>(new Set());
 
@@ -128,6 +137,15 @@ const LandingPageEditor: React.FC<LandingPageEditorProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Auto-Generate Section */}
+      {onAutoGenerate && (
+        <AutoGenerateSection
+          onGenerate={onAutoGenerate}
+          isGenerating={isAutoGenerating}
+          contentType="landing-page"
+        />
+      )}
+
       {/* Header with Category and Analysis Button */}
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader>

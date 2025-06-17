@@ -5,6 +5,7 @@ import { Input } from '@components/ui/input';
 import { Textarea } from '@components/ui/textarea';
 import { Label } from '@components/ui/label';
 import { PlusIcon, Trash2Icon, GripVerticalIcon, ChevronDownIcon, ChevronUpIcon, SparklesIcon } from 'lucide-react';
+import AutoGenerateSection from './AutoGenerateSection';
 
 interface Widget {
   id: string;
@@ -26,6 +27,12 @@ interface WidgetEditorProps {
   isAnalyzing: boolean;
   categoryTitle: string;
   onCategoryTitleChange: (title: string) => void;
+  onAutoGenerate?: (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => void;
+  isAutoGenerating?: boolean;
 }
 
 const WidgetEditor: React.FC<WidgetEditorProps> = ({
@@ -34,7 +41,9 @@ const WidgetEditor: React.FC<WidgetEditorProps> = ({
   onRunContentAnalysis,
   isAnalyzing,
   categoryTitle,
-  onCategoryTitleChange
+  onCategoryTitleChange,
+  onAutoGenerate,
+  isAutoGenerating = false
 }) => {
   const [expandedWidgets, setExpandedWidgets] = useState<Set<string>>(new Set());
 
@@ -120,6 +129,15 @@ const WidgetEditor: React.FC<WidgetEditorProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Auto-Generate Section */}
+      {onAutoGenerate && (
+        <AutoGenerateSection
+          onGenerate={onAutoGenerate}
+          isGenerating={isAutoGenerating}
+          contentType="widgets"
+        />
+      )}
+
       {/* Header with Category and Analysis Button */}
       <Card className="border border-gray-200 shadow-sm">
         <CardHeader>

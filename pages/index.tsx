@@ -216,6 +216,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
   });
   const [isAnalyzingLandingPage, setIsAnalyzingLandingPage] = useState(false);
   const [landingPageAnalysisResult, setLandingPageAnalysisResult] = useState<LandingPageAnalysisResult | null>(null);
+  const [isAutoGeneratingLandingPage, setIsAutoGeneratingLandingPage] = useState(false);
 
   // Widget State
   const [widgetContent, setWidgetContent] = useState<WidgetContent>({
@@ -223,6 +224,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
   });
   const [isAnalyzingWidgets, setIsAnalyzingWidgets] = useState(false);
   const [widgetAnalysisResult, setWidgetAnalysisResult] = useState<WidgetAnalysisResult | null>(null);
+  const [isAutoGeneratingWidgets, setIsAutoGeneratingWidgets] = useState(false);
 
   // Core state
   const [E, setE] = useState(3);
@@ -595,6 +597,105 @@ const LeadGenFunnelReviewer: React.FC = () => {
       setIsAnalyzingWidgets(false);
     }
   }, [widgetContent, categoryTitle, toast]);
+
+  // Auto-generate handlers
+  const handleAutoGenerateLandingPage = useCallback(async (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => {
+    setIsAutoGeneratingLandingPage(true);
+    try {
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate content');
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.generatedContent?.landingPageFolds) {
+        // Transform generated content to match our interface
+        const newFolds = result.generatedContent.landingPageFolds.map((fold: any, index: number) => ({
+          id: `generated-fold-${Date.now()}-${index}`,
+          headline: fold.headline,
+          subheadline: fold.subheadline,
+          cta: fold.cta,
+          textBoxes: fold.textBoxes,
+          socialProof: fold.socialProof
+        }));
+
+        setLandingPageContent({ folds: newFolds });
+        
+        toast({
+          title: "Content Generated! ✨",
+          description: `Generated ${newFolds.length} optimized landing page folds from ${result.competitorsAnalyzed} competitors`,
+        });
+      }
+    } catch (error) {
+      console.error('Auto-generate landing page error:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Could not generate landing page content. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAutoGeneratingLandingPage(false);
+    }
+  }, [toast]);
+
+  const handleAutoGenerateWidgets = useCallback(async (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => {
+    setIsAutoGeneratingWidgets(true);
+    try {
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate content');
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.generatedContent?.widgets) {
+        // Transform generated content to match our interface
+        const newWidgets = result.generatedContent.widgets.map((widget: any, index: number) => ({
+          id: `generated-widget-${Date.now()}-${index}`,
+          heading: widget.heading,
+          subheading: widget.subheading,
+          textInputPlaceholder: widget.textInputPlaceholder,
+          ctaCopy: widget.ctaCopy,
+          supportTexts: widget.supportTexts
+        }));
+
+        setWidgetContent({ widgets: newWidgets });
+        
+        toast({
+          title: "Widgets Generated! ✨",
+          description: `Generated ${newWidgets.length} optimized widgets from ${result.competitorsAnalyzed} competitors`,
+        });
+      }
+    } catch (error) {
+      console.error('Auto-generate widgets error:', error);
+      toast({
+        title: "Generation Failed",
+        description: "Could not generate widget content. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAutoGeneratingWidgets(false);
+    }
+  }, [toast]);
 
   // Helper function to build payload with optional parameter overrides
   const buildPayloadWithParams = useCallback((paramOverrides?: any) => {
@@ -1551,6 +1652,12 @@ const LeadGenFunnelReviewer: React.FC = () => {
           onRunWidgetAnalysis={runWidgetAnalysis}
           isAnalyzingWidgets={isAnalyzingWidgets}
           widgetAnalysisResult={widgetAnalysisResult}
+          
+          // Auto-generate props
+          onAutoGenerateLandingPage={handleAutoGenerateLandingPage}
+          isAutoGeneratingLandingPage={isAutoGeneratingLandingPage}
+          onAutoGenerateWidgets={handleAutoGenerateWidgets}
+          isAutoGeneratingWidgets={isAutoGeneratingWidgets}
           
           // Journey Steps specific sections
           journeyStepsAnalysisSections={

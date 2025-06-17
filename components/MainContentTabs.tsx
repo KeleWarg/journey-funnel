@@ -93,6 +93,20 @@ interface MainContentTabsProps {
   isAnalyzingWidgets: boolean;
   widgetAnalysisResult: WidgetAnalysisResult | null;
   
+  // Auto-generate props
+  onAutoGenerateLandingPage?: (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => void;
+  isAutoGeneratingLandingPage?: boolean;
+  onAutoGenerateWidgets?: (data: {
+    competitorUrls: string[];
+    industry: string;
+    targetAudience: string;
+  }) => void;
+  isAutoGeneratingWidgets?: boolean;
+  
   // Journey Steps specific sections (passed as children)
   journeyStepsAnalysisSections?: React.ReactNode;
 }
@@ -129,6 +143,12 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   onRunWidgetAnalysis,
   isAnalyzingWidgets,
   widgetAnalysisResult,
+  
+  // Auto-generate props
+  onAutoGenerateLandingPage,
+  isAutoGeneratingLandingPage,
+  onAutoGenerateWidgets,
+  isAutoGeneratingWidgets,
   
   // Journey Steps specific sections
   journeyStepsAnalysisSections
@@ -227,6 +247,8 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
                 isAnalyzing={isAnalyzingLandingPage}
                 categoryTitle={categoryTitle}
                 onCategoryTitleChange={onCategoryTitleChange}
+                onAutoGenerate={onAutoGenerateLandingPage}
+                isAutoGenerating={isAutoGeneratingLandingPage}
               />
               
               <LandingPageAnalysisPanel
@@ -254,6 +276,8 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
                 isAnalyzing={isAnalyzingWidgets}
                 categoryTitle={categoryTitle}
                 onCategoryTitleChange={onCategoryTitleChange}
+                onAutoGenerate={onAutoGenerateWidgets}
+                isAutoGenerating={isAutoGeneratingWidgets}
               />
               
               <WidgetAnalysisPanel
