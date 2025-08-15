@@ -30,7 +30,7 @@ import {
   OptimizeControlsDynamic,
   ExportShareControlsDynamic,
   BacksolveResultPanelDynamic
-} from '@components/dynamic-imports';
+} from '../components/dynamic-imports';
 import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult, StepWithText } from '../types';
 
 // Default values and constants - Updated to match YAML specification

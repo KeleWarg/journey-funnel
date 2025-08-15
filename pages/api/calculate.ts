@@ -202,11 +202,28 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
       M_prev = M_s;
     }
 
-    // 4) Return JSON per YAML specification
-    res.status(200).json({
-      per_step_metrics: results,          // array of per-step metrics per YAML
-      overall_predicted_CR: cumulativeConversion,  // CR_total per YAML
-    });
+    // 4) Optimize response format and add compression headers
+    const optimizedResponse = {
+      per_step_metrics: results.map(r => ({
+        step: r.step,
+        SC_s: parseFloat(r.SC_s.toFixed(4)),
+        F_s: parseFloat(r.F_s.toFixed(4)),
+        PS_s: parseFloat(r.PS_s.toFixed(4)),
+        M_s: parseFloat(r.M_s.toFixed(4)),
+        delta_s: parseFloat(r.delta_s.toFixed(4)),
+        p_exit_s: parseFloat(r.p_exit_s.toFixed(6)),
+        CR_s: parseFloat(r.CR_s.toFixed(6)),
+        cumulative_CR_s: parseFloat(r.cumulative_CR_s.toFixed(6)),
+        U_s_pred: Math.round(r.U_s_pred)
+      })),
+      overall_predicted_CR: parseFloat(cumulativeConversion.toFixed(6))
+    };
+
+    // Add performance headers
+    res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes cache
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    
+    res.status(200).json(optimizedResponse);
   } catch (err: any) {
     console.error("Error in /api/calculate:", err);
     res.status(500).json({ error: "Error in calculate API", details: err.message });

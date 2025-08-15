@@ -204,8 +204,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`- Minimum MSE found: ${lowestMSE}`);
     console.log(`- Best params: ${bestParams ? JSON.stringify(bestParams) : 'null'}`);
 
-    // 5. Return the best-fit parameters per YAML specification
-    res.status(200).json({ bestParams });
+    // 5. Return optimized response with performance headers
+    const optimizedResponse = {
+      bestParams: bestParams ? {
+        best_k: parseFloat(bestParams.best_k.toFixed(6)),
+        best_gamma_exit: parseFloat(bestParams.best_gamma_exit.toFixed(6)),
+        best_mse: parseFloat(bestParams.best_mse.toFixed(8)),
+        overall_predicted_CR_best: parseFloat(bestParams.overall_predicted_CR_best.toFixed(6)),
+        overall_observed_CR: parseFloat(bestParams.overall_observed_CR.toFixed(6))
+      } : null
+    };
+
+    // Add performance headers
+    res.setHeader('Cache-Control', 'public, max-age=600'); // 10 minutes cache
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    
+    res.status(200).json(optimizedResponse);
   } catch (err: any) {
     console.error(err);
     res.status(500).json({ error: 'Back-solve failed', details: err.message });

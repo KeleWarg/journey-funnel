@@ -55,16 +55,16 @@ const FogMetricsTable: React.FC<FogMetricsTableProps> = ({ rows }) => {
                 Step {row.stepIndex + 1}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <span className="font-mono">{row.motivation.toFixed(1)}</span>
+                <span className="font-mono">{row.motivation != null ? row.motivation.toFixed(1) : 'N/A'}</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <span className="font-mono">{row.ability.toFixed(1)}</span>
+                <span className="font-mono">{row.ability != null ? row.ability.toFixed(1) : 'N/A'}</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <span className="font-mono">{row.trigger.toFixed(1)}</span>
+                <span className="font-mono">{row.trigger != null ? row.trigger.toFixed(1) : 'N/A'}</span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <span className="font-mono font-medium text-indigo-600">{row.fogg_score.toFixed(1)}</span>
+                <span className="font-mono font-medium text-indigo-600">{row.fogg_score != null ? row.fogg_score.toFixed(1) : 'N/A'}</span>
               </td>
             </tr>
           ))}
