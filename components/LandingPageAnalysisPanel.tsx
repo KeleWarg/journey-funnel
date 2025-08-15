@@ -216,7 +216,7 @@ const LandingPageAnalysisPanel: React.FC<LandingPageAnalysisPanelProps> = ({
               {analysisResult.overallScore && (
                 <div className="text-right">
                   <div className="text-2xl font-bold text-purple-600">
-                    {analysisResult.overallScore.toFixed(1)}/5
+                    {analysisResult.overallScore ? analysisResult.overallScore.toFixed(1) : '0.0'}/5
                   </div>
                   <div className="text-xs text-gray-500">Content Score</div>
                 </div>
@@ -337,7 +337,7 @@ const LandingPageAnalysisPanel: React.FC<LandingPageAnalysisPanelProps> = ({
                                                   )}
                                                   {frameworkAssessment.score && (
                                                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
-                                                      Score: {frameworkAssessment.score.toFixed(1)}/5
+                                                      Score: {frameworkAssessment.score ? frameworkAssessment.score.toFixed(1) : '0.0'}/5
                                                     </span>
                                                   )}
                                                 </div>

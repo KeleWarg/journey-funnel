@@ -1026,7 +1026,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
       
       toast({
         title: "Optimization Complete",
-        description: `Best CR found: ${(data.optimalCRTotal * 100).toFixed(2)}% using ${data.algorithm} algorithm${data.fogg_seeding?.enabled ? ' with Fogg B=MAT seeding' : data.hybrid_seeding?.enabled ? ' with Hybrid seeding' : ''}`
+        description: `Best CR found: ${data.optimalCRTotal ? (data.optimalCRTotal * 100).toFixed(2) : '0.00'}% using ${data.algorithm || 'unknown'} algorithm${data.fogg_seeding?.enabled ? ' with Fogg B=MAT seeding' : data.hybrid_seeding?.enabled ? ' with Hybrid seeding' : ''}`
       });
     } catch (error) {
       console.error('Optimization error:', error);
@@ -1269,7 +1269,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
 
       toast({
         title: "MCP Analysis Complete",
-        description: `Analyzed ${data.metadata.totalVariants} framework variants. Best: ${data.metadata.topPerformer.framework} (+${data.metadata.topPerformer.uplift_pp.toFixed(2)}pp)`
+        description: `Analyzed ${data.metadata?.totalVariants || 0} framework variants. Best: ${data.metadata?.topPerformer?.framework || 'Unknown'} (+${data.metadata?.topPerformer?.uplift_pp ? data.metadata.topPerformer.uplift_pp.toFixed(2) : '0.00'}pp)`
       });
 
     } catch (error) {
@@ -1357,7 +1357,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
     try {
       toast({
         title: "Applying Enhanced Variant",
-        description: `Implementing ${variant.framework} optimization with ${variant.uplift_pp.toFixed(1)}pp expected uplift`
+        description: `Implementing ${variant.framework || 'unknown'} optimization with ${variant.uplift_pp ? variant.uplift_pp.toFixed(1) : '0.0'}pp expected uplift`
       });
       
       // Update steps with the suggested order
@@ -1556,7 +1556,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
 
       toast({
         title: "Fogg Analysis Complete",
-        description: `Fogg Behavior Model analysis complete. ${foggResult.uplift_pp.toFixed(1)}pp improvement identified.`
+        description: `Fogg Behavior Model analysis complete. ${foggResult.uplift_pp ? foggResult.uplift_pp.toFixed(1) : '0.0'}pp improvement identified.`
       });
 
     } catch (error) {
@@ -2018,7 +2018,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-semibold text-purple-700">✨ Optimal Flow</span>
                               <span className="text-lg font-bold text-green-700">
-                                {(optimizeResult.optimal_CR_total * 100).toFixed(2)}%
+                                {optimizeResult.optimal_CR_total ? (optimizeResult.optimal_CR_total * 100).toFixed(2) : '0.00'}%
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-2">

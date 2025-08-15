@@ -87,7 +87,7 @@ const OptimizationSection: React.FC<OptimizationSectionProps> = ({
         
         toast({
           title: "Optimization Complete",
-          description: `Best CR found: ${(result.optimalCRTotal * 100).toFixed(2)}% using ${result.algorithm} algorithm${result.fogg_seeding?.enabled ? ' with Fogg B=MAT seeding' : result.hybrid_seeding?.enabled ? ' with Hybrid seeding' : ''}`
+          description: `Best CR found: ${result.optimalCRTotal ? (result.optimalCRTotal * 100).toFixed(2) : '0.00'}% using ${result.algorithm || 'unknown'} algorithm${result.fogg_seeding?.enabled ? ' with Fogg B=MAT seeding' : result.hybrid_seeding?.enabled ? ' with Hybrid seeding' : ''}`
         });
       }
     } catch (error) {
@@ -275,7 +275,7 @@ const OptimizationSection: React.FC<OptimizationSectionProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-purple-700">✨ Optimal Flow</span>
                   <span className="text-lg font-bold text-green-700">
-                    {(state.optimizeResult.optimal_CR_total * 100).toFixed(2)}%
+                    {state.optimizeResult.optimal_CR_total ? (state.optimizeResult.optimal_CR_total * 100).toFixed(2) : '0.00'}%
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-2">
