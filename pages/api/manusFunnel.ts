@@ -50,15 +50,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Initialize MCP client on server-side
     const { initializeMCPOnServer } = await import('../../lib/mcp-server');
-    const { createMockMCPClient } = await import('../../lib/mock-mcp-server');
     
     let manus;
     try {
       manus = await initializeMCPOnServer();
     } catch (mcpError) {
-      console.warn('MCP initialization failed, falling back to mock:', mcpError);
-      // Use mock MCP client as fallback
-      manus = createMockMCPClient();
+      console.error('MCP service unavailable:', mcpError);
+      return res.status(503).json({
+        error: 'Advanced MCP Framework Analysis Unavailable',
+        message: 'The advanced framework analysis service is currently unavailable. Please use the basic analysis features or try again later.',
+        details: 'MCP server connection failed',
+        suggestion: 'Use "Complete Analysis" for core funnel optimization without advanced framework features.'
+      });
     }
 
     console.log(`MCP Funnel Orchestrator: Processing ${steps.length} steps with ${frameworks.length} frameworks`);
@@ -124,41 +127,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     console.error('MCP Funnel orchestrator error:', error);
-    
-    // Fallback to mock MCP when real MCP fails
-    try {
-      console.log('🔄 Falling back to Mock MCP for manusFunnel');
-      const { createMockMCPClient } = await import('../../lib/mock-mcp-server');
-      const mockClient = createMockMCPClient();
-      
-      const mockResult = await mockClient.callFunction("manusFunnel", {
-        steps: req.body.steps,
-        frameworks: req.body.frameworks || [
-          'PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini', 
-          'SCARF', 'JTBD', 'TOTE', 'ELM'
-        ]
-      });
-
-      console.log(`✅ Mock MCP Funnel: Received baseline CR ${(mockResult.baselineCR * 100).toFixed(2)}% with ${mockResult.variants.length} variants`);
-
-      // Enhanced response with metadata
-      const enhancedResult = {
-        ...mockResult,
-        metadata: {
-          ...mockResult.metadata,
-          fallback_used: true,
-          original_error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      };
-
-      res.status(200).json(enhancedResult);
-    } catch (fallbackError) {
-      console.error('Mock MCP fallback also failed:', fallbackError);
-      res.status(500).json({ 
-        error: 'MCP funnel orchestration failed',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        fallback_error: fallbackError instanceof Error ? fallbackError.message : 'Unknown fallback error'
-      });
-    }
+    res.status(503).json({
+      error: 'Advanced MCP Framework Analysis Failed',
+      message: 'The advanced framework analysis encountered an error. Please use the basic analysis features or try again later.',
+      details: error instanceof Error ? error.message : 'Unknown error occurred during MCP analysis',
+      suggestion: 'Use "Complete Analysis" for core funnel optimization without advanced framework features.'
+    });
   }
 } 

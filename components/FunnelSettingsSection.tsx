@@ -7,6 +7,41 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@components/ui/collapsible';
 import { ChevronDownIcon } from 'lucide-react';
 
+// Move options outside component to prevent recreating on every render
+const JOURNEY_TYPE_OPTIONS = [
+  { value: 'transactional', label: 'Transactional' },
+  { value: 'exploratory', label: 'Exploratory' },
+  { value: 'emotional', label: 'Emotional' },
+  { value: 'legal_required', label: 'Legal Required' },
+  { value: 'conversational', label: 'Conversational' },
+  { value: 'urgent', label: 'Urgent' }
+] as const;
+
+const EMOTION_OPTIONS = [
+  { value: 1, label: '1 - Neutral/Logical' },
+  { value: 2, label: '2 - Slightly Emotional' },
+  { value: 3, label: '3 - Moderately Emotional' },
+  { value: 4, label: '4 - Highly Emotional' },
+  { value: 5, label: '5 - Extremely Emotional' }
+] as const;
+
+const NECESSITY_OPTIONS = [
+  { value: 1, label: '1 - Nice to Have' },
+  { value: 2, label: '2 - Somewhat Important' },
+  { value: 3, label: '3 - Important' },
+  { value: 4, label: '4 - Very Important' },
+  { value: 5, label: '5 - Critical/Urgent' }
+] as const;
+
+const TRAFFIC_SOURCE_OPTIONS = [
+  { value: 'paid_search', label: 'Paid Search' },
+  { value: 'paid_social', label: 'Paid Social' },
+  { value: 'organic_search', label: 'Organic Search' },
+  { value: 'direct_referral', label: 'Direct/Referral' },
+  { value: 'display_email', label: 'Display/Email' },
+  { value: 'social_organic', label: 'Social Organic' }
+] as const;
+
 interface FunnelSettingsSectionProps {
   journeyType: string;
   onJourneyTypeChange: (type: string) => void;
@@ -18,48 +53,23 @@ interface FunnelSettingsSectionProps {
   setSource: (value: string) => void;
   U0: number;
   setU0: (value: number) => void;
-  c1: number; setC1: (value: number) => void;
-  c2: number; setC2: (value: number) => void;
-  c3: number; setC3: (value: number) => void;
-  w_c: number; setWC: (value: number) => void;
-  w_f: number; setWF: (value: number) => void;
-  w_E: number; setWE: (value: number) => void;
-  w_N: number; setWN: (value: number) => void;
+  c1: number; 
+  setC1: (value: number) => void;
+  c2: number; 
+  setC2: (value: number) => void;
+  c3: number; 
+  setC3: (value: number) => void;
+  w_c: number; 
+  setWC: (value: number) => void;
+  w_f: number; 
+  setWF: (value: number) => void;
+  w_E: number; 
+  setWE: (value: number) => void;
+  w_N: number; 
+  setWN: (value: number) => void;
 }
 
-const journeyTypeOptions = [
-  { value: 'transactional', label: 'Transactional' },
-  { value: 'exploratory', label: 'Exploratory' },
-  { value: 'emotional', label: 'Emotional' },
-  { value: 'legal_required', label: 'Legal Required' },
-  { value: 'conversational', label: 'Conversational' },
-  { value: 'urgent', label: 'Urgent' }
-];
 
-const emotionOptions = [
-  { value: 1, label: '1 - Neutral/Logical' },
-  { value: 2, label: '2 - Slightly Emotional' },
-  { value: 3, label: '3 - Moderately Emotional' },
-  { value: 4, label: '4 - Highly Emotional' },
-  { value: 5, label: '5 - Extremely Emotional' }
-];
-
-const necessityOptions = [
-  { value: 1, label: '1 - Nice to Have' },
-  { value: 2, label: '2 - Somewhat Important' },
-  { value: 3, label: '3 - Important' },
-  { value: 4, label: '4 - Very Important' },
-  { value: 5, label: '5 - Critical/Urgent' }
-];
-
-const trafficSourceOptions = [
-  { value: 'paid_search', label: 'Paid Search' },
-  { value: 'paid_social', label: 'Paid Social' },
-  { value: 'organic_search', label: 'Organic Search' },
-  { value: 'direct_referral', label: 'Direct/Referral' },
-  { value: 'display_email', label: 'Display/Email' },
-  { value: 'social_organic', label: 'Social Organic' }
-];
 
 const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
   journeyType, onJourneyTypeChange,
@@ -97,7 +107,7 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
                 <SelectValue placeholder="Select journey type" />
               </SelectTrigger>
               <SelectContent>
-                {journeyTypeOptions.map(option => (
+                {JOURNEY_TYPE_OPTIONS.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -117,7 +127,7 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
                 <SelectValue placeholder="Select emotion level" />
               </SelectTrigger>
               <SelectContent>
-                {emotionOptions.map(option => (
+                {EMOTION_OPTIONS.map(option => (
                   <SelectItem key={option.value} value={option.value.toString()}>
                     {option.label}
                   </SelectItem>
@@ -137,7 +147,7 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
                 <SelectValue placeholder="Select necessity level" />
               </SelectTrigger>
               <SelectContent>
-                {necessityOptions.map(option => (
+                {NECESSITY_OPTIONS.map(option => (
                   <SelectItem key={option.value} value={option.value.toString()}>
                     {option.label}
                   </SelectItem>
@@ -162,7 +172,7 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
                 <SelectValue placeholder="Select traffic source" />
               </SelectTrigger>
               <SelectContent>
-                {trafficSourceOptions.map(option => (
+                {TRAFFIC_SOURCE_OPTIONS.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -205,8 +215,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
               
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">c₁ (interaction weight)</Label>
+                <Label htmlFor="c1" className="text-sm font-medium text-gray-700">c₁ (interaction weight)</Label>
                 <Input
+                  id="c1"
                   type="number"
                   step={0.1}
                   value={c1}
@@ -216,8 +227,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">c₂ (privacy weight)</Label>
+                <Label htmlFor="c2" className="text-sm font-medium text-gray-700">c₂ (privacy weight)</Label>
                 <Input
+                  id="c2"
                   type="number"
                   step={0.1}
                   value={c2}
@@ -227,8 +239,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">c₃ (difficulty weight)</Label>
+                <Label htmlFor="c3" className="text-sm font-medium text-gray-700">c₃ (difficulty weight)</Label>
                 <Input
+                  id="c3"
                   type="number"
                   step={0.1}
                   value={c3}
@@ -238,8 +251,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">w_c (complexity weight)</Label>
+                <Label htmlFor="w_c" className="text-sm font-medium text-gray-700">w_c (complexity weight)</Label>
                 <Input
+                  id="w_c"
                   type="number"
                   step={0.1}
                   value={w_c}
@@ -249,8 +263,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">w_f (fatigue weight)</Label>
+                <Label htmlFor="w_f" className="text-sm font-medium text-gray-700">w_f (fatigue weight)</Label>
                 <Input
+                  id="w_f"
                   type="number"
                   step={0.1}
                   value={w_f}
@@ -260,8 +275,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">w_E (Emotion weight)</Label>
+                <Label htmlFor="w_E" className="text-sm font-medium text-gray-700">w_E (Emotion weight)</Label>
                 <Input
+                  id="w_E"
                   type="number"
                   step={0.01}
                   value={w_E}
@@ -271,8 +287,9 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">w_N (Necessity weight)</Label>
+                <Label htmlFor="w_N" className="text-sm font-medium text-gray-700">w_N (Necessity weight)</Label>
                 <Input
+                  id="w_N"
                   type="number"
                   step={0.01}
                   value={w_N}
@@ -292,4 +309,5 @@ const FunnelSettingsSection: React.FC<FunnelSettingsSectionProps> = ({
   );
 };
 
-export default FunnelSettingsSection;
+// Memoize component to prevent unnecessary re-renders when props haven't changed
+export default React.memo(FunnelSettingsSection);

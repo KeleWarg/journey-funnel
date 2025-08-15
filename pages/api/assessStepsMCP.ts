@@ -60,15 +60,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Initialize MCP client on server-side
     const { initializeMCPOnServer } = await import('../../lib/mcp-server');
-    const { createMockMCPClient } = await import('../../lib/mock-mcp-server');
     
     let manus;
     try {
       manus = await initializeMCPOnServer();
     } catch (mcpError) {
-      console.warn('MCP initialization failed, falling back to mock:', mcpError);
-      // Use mock MCP client as fallback
-      manus = createMockMCPClient();
+      console.error('MCP service unavailable:', mcpError);
+      return res.status(503).json({
+        error: 'Advanced MCP Assessment Unavailable',
+        message: 'The advanced MCP assessment service is currently unavailable. Please use the basic LLM assessment features or try again later.',
+        details: 'MCP server connection failed',
+        suggestion: 'Use "Run LLM Assessment" for psychological framework analysis without MCP features.'
+      });
     }
 
     console.log(`MCP Assessment: Processing ${steps.length} steps with ${frameworks.length} frameworks`);

@@ -1,29 +1,36 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { useToast } from '@hooks/use-toast';
+import { useDebounce } from '@hooks/use-debounce';
+import { useCalculation, useAssessment, useBacksolve } from '@hooks/use-api';
 import Link from 'next/link';
 import { Button } from '@components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@components/ui/card';
 import { Label } from '@components/ui/label';
 import { Input } from '@components/ui/input';
 import { Loader2Icon, BarChart3Icon } from 'lucide-react';
+// Static imports for critical components
 import CurrentConstantsSection from '@components/CurrentConstantsSection';
 import FunnelSettingsSection from '@components/FunnelSettingsSection';
 import MainContentTabs from '@components/MainContentTabs';
 import SimulationBacksolveControls from '@components/SimulationBacksolveControls';
-import BacksolveResultPanel from '@components/BacksolveResultPanel';
-import OptimizeControls from '@components/OptimizeControls';
-import ExportShareControls from '@components/ExportShareControls';
-import DataVisualization from '@components/DataVisualization';
-import LLMAssessmentPanel from '@components/LLMAssessmentPanel';
-import MCPComparisonTable from '@components/MCPComparisonTable';
-import CeilingAnalysisPanel from '@components/CeilingAnalysisPanel';
-import EnhancedComparisonTable from '@components/EnhancedComparisonTable';
-import UniqueCombinationTable from '@components/UniqueCombinationTable';
-import FrameworkSuggestionsPanel from '@components/FrameworkSuggestionsPanel';
-import FoggModelAnalysis from '@components/FoggModelAnalysis';
-import AnalysisTabsSection from '@components/AnalysisTabsSection';
 import HowItWorksSection from '@components/HowItWorksSection';
+
+// Dynamic imports for performance optimization
+import {
+  DataVisualizationDynamic,
+  LLMAssessmentPanelDynamic,
+  MCPComparisonTableDynamic,
+  CeilingAnalysisPanelDynamic,
+  EnhancedComparisonTableDynamic,
+  UniqueCombinationTableDynamic,
+  FrameworkSuggestionsPanelDynamic,
+  FoggModelAnalysisDynamic,
+  AnalysisTabsSectionDynamic,
+  OptimizeControlsDynamic,
+  ExportShareControlsDynamic,
+  BacksolveResultPanelDynamic
+} from '@components/dynamic-imports';
 import { BacksolveResult, Step, SimulationData, LLMAssessmentResult, MCPFunnelResult, MCPFunnelVariant, BoostElement, MCPAssessmentResult, MCPOrderRecommendation, OptimizeResult, FoggStepAssessmentResult, StepWithText } from '../types';
 
 // Default values and constants - Updated to match YAML specification
@@ -721,24 +728,29 @@ const LeadGenFunnelReviewer: React.FC = () => {
     }
   }, [toast]);
 
+  // Memoized base payload to prevent unnecessary recalculations
+  const memoizedBasePayload = useMemo(() => ({
+    journeyType,
+    E,
+    N_importance: N,
+    source,
+    steps,
+    c1, c2, c3, w_c, w_f, w_E, w_N,
+    U0,
+    llmAssessments: llmAssessmentResult?.assessments || null,
+    apply_llm_uplift: true
+  }), [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, llmAssessmentResult]);
+
   // Helper function to build payload with optional parameter overrides
   const buildPayloadWithParams = useCallback((paramOverrides?: any) => {
     const currentOverrides = paramOverrides || overrides;
     return {
-      journeyType,
-      E,
-      N_importance: N,
-      source,
-      steps,
-      c1, c2, c3, w_c, w_f, w_E, w_N,
-      U0,
+      ...memoizedBasePayload,
       k_override: currentOverrides.k,
       gamma_exit_override: currentOverrides.gamma_exit,
-      epsilon_override: currentOverrides.epsilon,
-      llmAssessments: llmAssessmentResult?.assessments || null,
-      apply_llm_uplift: true
+      epsilon_override: currentOverrides.epsilon
     };
-  }, [journeyType, E, N, source, steps, c1, c2, c3, w_c, w_f, w_E, w_N, U0, overrides, llmAssessmentResult]);
+  }, [memoizedBasePayload, overrides]);
 
   // Build payload for API calls
   const buildPayload = useCallback(() => {
@@ -1030,6 +1042,26 @@ const LeadGenFunnelReviewer: React.FC = () => {
 
   const { getCachedAssessment, setCachedAssessment } = useAssessmentCache();
 
+  // Memoized assessment payload for SWR caching
+  const assessmentPayload = useMemo(() => {
+    if (!simulationData || !steps) return null;
+    
+    return {
+      steps: steps.map((step, stepIndex) => ({
+        stepIndex,
+        questionTexts: step.questions.map(q => q.title),
+        Qs: step.questions.length > 0 ? 
+          step.questions.reduce((sum, q) => sum + parseInt(q.input_type || '2'), 0) / step.questions.length : 2,
+        Is: step.questions.length > 0 ? 
+          step.questions.reduce((sum, q) => sum + q.invasiveness, 0) / step.questions.length : 2,
+        Ds: step.questions.length > 0 ? 
+          step.questions.reduce((sum, q) => sum + q.difficulty, 0) / step.questions.length : 2,
+        CR_s: simulationData.predictedSteps[stepIndex]?.CR_s || 0.5
+      })),
+      frameworks: ['PAS', 'Fogg', 'Nielsen', 'AIDA', 'Cialdini']
+    };
+  }, [simulationData, steps]);
+
   const runLLMAssessment = useCallback(async () => {
     try {
       setIsAssessing(true);
@@ -1208,7 +1240,12 @@ const LeadGenFunnelReviewer: React.FC = () => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           
-          // Special handling for MCP not available
+          // Special handling for MCP service unavailable (503 status)
+          if (response.status === 503) {
+            throw new Error(errorData.message || 'Advanced MCP Framework Analysis is currently unavailable. Please use the basic analysis features.');
+          }
+          
+          // Special handling for MCP not available (legacy)
           if (errorData.error === 'MCP client not available') {
             throw new Error('MCP client not initialized. Please ensure the MCP manus client is properly configured.');
           }
@@ -1297,6 +1334,10 @@ const LeadGenFunnelReviewer: React.FC = () => {
           description: `Analyzed ${data.baseline_metrics?.frameworks_analyzed || 9} framework variants (PAS, Fogg, Nielsen, AIDA, Cialdini, SCARF, JTBD, TOTE, ELM) using ${data.baseline_metrics?.algorithm_used || 'optimization'}`
         });
       } else {
+        // Handle specific MCP service unavailable error
+        if (response.status === 503) {
+          throw new Error(data?.message || 'Enhanced MCP Analysis service is currently unavailable. Please use the basic analysis features.');
+        }
         const errorMessage = data?.details || 'Enhanced analysis failed';
         throw new Error(String(errorMessage));
       }
@@ -1412,22 +1453,31 @@ const LeadGenFunnelReviewer: React.FC = () => {
     }, 100);
   };
 
-  // Validation
-  const canRunSimulation = steps && steps.length > 0 && steps.every(step => 
-    step && 
-    step.questions && 
-    Array.isArray(step.questions) && 
-    step.questions.length > 0 &&
-    step.questions.every(q => q && q.input_type && q.title && q.title.trim() && 
-      typeof q.invasiveness === 'number' && typeof q.difficulty === 'number')
-  );
+  // Debounced steps for expensive validation calculations
+  const debouncedSteps = useDebounce(steps, 300);
+  const debouncedCategoryTitle = useDebounce(categoryTitle, 300);
 
-  const canRunBacksolve = steps && steps.length > 0 && steps.every(step => 
-    step && typeof step.observedCR === 'number' && step.observedCR !== null && step.observedCR !== undefined
-  );
+  // Validation with debounced values to prevent excessive recalculation
+  const validationState = useMemo(() => {
+    const canRunSimulation = debouncedSteps && debouncedSteps.length > 0 && debouncedSteps.every(step => 
+      step && 
+      step.questions && 
+      Array.isArray(step.questions) && 
+      step.questions.length > 0 &&
+      step.questions.every(q => q && q.input_type && q.title && q.title.trim() && 
+        typeof q.invasiveness === 'number' && typeof q.difficulty === 'number')
+    );
 
-  // Enhanced validation: Complete Analysis now requires category title
-  const canRunCompleteAnalysis = canRunSimulation && canRunBacksolve && categoryTitle.trim().length > 0;
+    const canRunBacksolve = debouncedSteps && debouncedSteps.length > 0 && debouncedSteps.every(step => 
+      step && typeof step.observedCR === 'number' && step.observedCR !== null && step.observedCR !== undefined
+    );
+
+    const canRunCompleteAnalysis = canRunSimulation && canRunBacksolve && debouncedCategoryTitle.trim().length > 0;
+
+    return { canRunSimulation, canRunBacksolve, canRunCompleteAnalysis };
+  }, [debouncedSteps, debouncedCategoryTitle]);
+
+  const { canRunSimulation, canRunBacksolve, canRunCompleteAnalysis } = validationState;
 
   // New validation: Detailed Assessment requires Complete Analysis to be run first
   const canRunDetailedAssessment = simulationData !== null && backsolveResult !== null;
@@ -1697,14 +1747,14 @@ const LeadGenFunnelReviewer: React.FC = () => {
 
               {/* Back-solve Result Panel */}
               {backsolveResult && (
-                <BacksolveResultPanel
+                <BacksolveResultPanelDynamic
                   backsolveResult={backsolveResult}
                 />
               )}
 
               {/* Detailed Analysis Results Section */}
               {simulationData && (
-                <AnalysisTabsSection
+                <AnalysisTabsSectionDynamic
                   mcpFunnelResult={mcpFunnelResult}
                   enhancedMcpResult={enhancedMcpResult}
                   isEnhancedMCPAnalyzing={isEnhancedMCPAnalyzing}
@@ -1773,21 +1823,21 @@ const LeadGenFunnelReviewer: React.FC = () => {
                               <div className="text-sm font-medium text-gray-900 mb-2">Step {assessment.stepIndex + 1}</div>
                               <div className="grid grid-cols-3 gap-2 text-xs">
                                 <div className="text-center">
-                                  <div className="font-bold text-blue-600">{assessment.motivation_score.toFixed(1)}</div>
+                                  <div className="font-bold text-blue-600">{assessment.motivation_score != null ? assessment.motivation_score.toFixed(1) : 'N/A'}</div>
                                   <div className="text-gray-600">Motivation</div>
                                 </div>
                                 <div className="text-center">
-                                  <div className="font-bold text-green-600">{assessment.ability_score.toFixed(1)}</div>
+                                  <div className="font-bold text-green-600">{assessment.ability_score != null ? assessment.ability_score.toFixed(1) : 'N/A'}</div>
                                   <div className="text-gray-600">Ability</div>
                                 </div>
                                 <div className="text-center">
-                                  <div className="font-bold text-purple-600">{assessment.trigger_score.toFixed(1)}</div>
+                                  <div className="font-bold text-purple-600">{assessment.trigger_score != null ? assessment.trigger_score.toFixed(1) : 'N/A'}</div>
                                   <div className="text-gray-600">Trigger</div>
                                 </div>
                               </div>
                               <div className="mt-2 text-center">
                                 <div className="text-sm font-bold text-gray-900">
-                                  Overall: {assessment.overall_score.toFixed(1)}/5
+                                  Overall: {assessment.overall_score != null ? assessment.overall_score.toFixed(1) : 'N/A'}/5
                                 </div>
                               </div>
                             </div>
@@ -1992,7 +2042,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
               )}
 
               {/* Export & Share Controls */}
-              <ExportShareControls
+              <ExportShareControlsDynamic
                 simulationData={simulationData}
                 backsolveResult={backsolveResult}
                 optimalPositions={optimalPositions}
@@ -2002,7 +2052,7 @@ const LeadGenFunnelReviewer: React.FC = () => {
 
               {/* Data Visualization */}
               {simulationData && (
-                <DataVisualization
+                <DataVisualizationDynamic
                   simulationData={simulationData}
                   optimizeResult={optimizeResult}
                   steps={steps}

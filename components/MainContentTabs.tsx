@@ -293,4 +293,5 @@ const MainContentTabs: React.FC<MainContentTabsProps> = ({
   );
 };
 
-export default MainContentTabs; 
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(MainContentTabs); 

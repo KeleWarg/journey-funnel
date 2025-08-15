@@ -6,6 +6,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 
+  // Add timeout handling for long-running optimization
+  const timeoutPromise = new Promise<never>((_, reject) => 
+    setTimeout(() => reject(new Error('Optimization timeout - try reducing sample count')), 60000) // 60 second timeout
+  );
+
+  try {
+    // Wrap the main processing in a race with timeout
+    await Promise.race([
+      processOptimization(req, res),
+      timeoutPromise
+    ]);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('timeout')) {
+      console.warn('Optimization timeout:', req.body.sample_count, 'samples');
+      res.status(408).json({ 
+        error: 'Optimization timeout', 
+        suggestion: 'Try reducing sample count or number of steps',
+        current_sample_count: req.body.sample_count 
+      });
+    } else if (!res.headersSent) {
+      console.error("Error in /api/optimize:", error);
+      res.status(500).json({ error: "Error in optimize API", details: error instanceof Error ? error.message : String(error) });
+    }
+  }
+}
+
+// Extract main optimization logic to separate function for timeout handling
+async function processOptimization(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { 
       steps, 
